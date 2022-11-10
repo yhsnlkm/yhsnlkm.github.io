@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="VMWARE的配置 VMWARE软件的安装和操作系统的安装这里不再介绍，假定已经全部安装完毕。 在虚拟机配置页面进行串口配置，如图所示    WINDBG的配置 安装WINDBG时，需要注意的是调试W">
+<meta property="og:type" content="article">
+<meta property="og:title" content="内核驱动VMWARE调试环境搭建(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="VMWARE的配置 VMWARE软件的安装和操作系统的安装这里不再介绍，假定已经全部安装完毕。 在虚拟机配置页面进行串口配置，如图所示    WINDBG的配置 安装WINDBG时，需要注意的是调试W">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/01.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/02.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/03.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/04.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/05.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/06.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/07.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/08.png">
+<meta property="article:published_time" content="2019-07-04T06:12:13.000Z">
+<meta property="article:modified_time" content="2021-01-04T03:11:01.965Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="基础知识">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/01.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>内核驱动VMWARE调试环境搭建(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#VMWARE%E7%9A%84%E9%85%8D%E7%BD%AE"><span class="nav-number">1.</span> <span class="nav-text">VMWARE的配置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#WINDBG%E7%9A%84%E9%85%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">WINDBG的配置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#WINXP%E7%9A%84%E9%85%8D%E7%BD%AE"><span class="nav-number">3.</span> <span class="nav-text">WINXP的配置</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/07/04/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          内核驱动VMWARE调试环境搭建(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-07-04 14:12:13" itemprop="dateCreated datePublished" datetime="2019-07-04T14:12:13+08:00">2019-07-04</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-01-04 11:11:01" itemprop="dateModified" datetime="2021-01-04T11:11:01+08:00">2021-01-04</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" itemprop="url" rel="index"><span itemprop="name">基础知识</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="VMWARE的配置"><a href="#VMWARE的配置" class="headerlink" title="VMWARE的配置"></a>VMWARE的配置</h4><p>VMWARE软件的安装和操作系统的安装这里不再介绍，假定已经全部安装完毕。<br>在虚拟机配置页面进行串口配置，如图所示</p>
+<p><img src="01.png" alt="虚拟机设置"></p>
+<h4 id="WINDBG的配置"><a href="#WINDBG的配置" class="headerlink" title="WINDBG的配置"></a>WINDBG的配置</h4><p>安装WINDBG时，需要注意的是调试WIN10系统，需要WINDBG的10.0及以上版本才能正常识别。<br>创建WINDBG程序的快捷方式，然后在 <code>目标</code> 栏处，程序路径的后边附加调试参数，例如</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&quot;C:\Program Files\Debuggers\windbg.exe&quot; -b -k com:port&#x3D;\\.\pipe\com_1,baud&#x3D;115200,pipe</span><br></pre></td></tr></table></figure>
+
+<p><img src="02.png" alt="WINDBG参数"></p>
+<h4 id="WINXP的配置"><a href="#WINXP的配置" class="headerlink" title="WINXP的配置"></a>WINXP的配置</h4><p>WINXP中需要对 <code>boot.ini</code> 进行修改，这里提供一种方式。<br>在 <code>我的电脑</code> 右键，单击选择 <code>属性</code> 栏</p>
+<p><img src="03.png" alt="我的电脑"></p>
+<p>选择 <code>高级</code> 选项卡，然后单击 <code>启动和故障恢复</code> 里边的 <code>设置</code> 按钮</p>
+<p><img src="04.png" alt="系统属性"></p>
+<p>在 <code>启动和故障恢复</code> 窗口中单击 <code>编辑</code> 按钮</p>
+<p><img src="05.png" alt="启动和故障恢复"></p>
+<p>到这里就打开了 <code>boot.ini</code> 文件，复制 <code>[operating systems]</code> 里边的信息到新的一行</p>
+<p><img src="06.png" alt="boot.ini文件"></p>
+<p>然后在新复制的信息末尾增加调试参数，例如</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">multi(0)disk(0)rdisk(0)partition(1)\WINDOWS&#x3D;&quot;WinXP&quot; &#x2F;noexecute&#x3D;optin &#x2F;fastdetect &#x2F;debug &#x2F;debugport&#x3D;com1 &#x2F;baudrate&#x3D;115200</span><br></pre></td></tr></table></figure>
+
+<p><img src="07.png" alt="调试参数"></p>
+<p>保存 <code>boot.ini</code> 文件并关闭，然后重启操作系统，在开机界面要选择 <code>[启用调试程序]</code> 项</p>
+<p><img src="08.png" alt="开机选择项"></p>
+<p>选择完毕后，同步打开具有调试参数的WINDBG快捷方式，至此搭建完成。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" rel="tag"># 基础知识</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/07/05/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8%E6%B3%A8%E5%86%8C%E8%A1%A8%E5%9B%9E%E8%B0%83%E5%AE%9E%E7%8E%B0%E6%B3%A8%E5%86%8C%E8%A1%A8%E8%BF%87%E6%BB%A4-1/" rel="next" title="使用注册表回调实现注册表过滤(1)">
+                  使用注册表回调实现注册表过滤(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

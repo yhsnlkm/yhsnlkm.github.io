@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 PE文件数字签名使用的是 Authenticode 数字签名格式，它用来验证二进制程序的来源和完整性。 基于公开密匙加密标准 PKCS #7 来签名数据，并使用 X.509 证书来关联二进制程序">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PE文件中的数字签名信息(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/12/20/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/PE%E6%96%87%E4%BB%B6%E4%B8%AD%E7%9A%84%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%E4%BF%A1%E6%81%AF-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 PE文件数字签名使用的是 Authenticode 数字签名格式，它用来验证二进制程序的来源和完整性。 基于公开密匙加密标准 PKCS #7 来签名数据，并使用 X.509 证书来关联二进制程序">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/12/20/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/PE%E6%96%87%E4%BB%B6%E4%B8%AD%E7%9A%84%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%E4%BF%A1%E6%81%AF-1/01.png">
+<meta property="article:published_time" content="2019-12-20T02:36:39.000Z">
+<meta property="article:modified_time" content="2019-12-20T09:30:41.464Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="数字签名">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2019/12/20/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/PE%E6%96%87%E4%BB%B6%E4%B8%AD%E7%9A%84%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%E4%BF%A1%E6%81%AF-1/01.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/12/20/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/PE%E6%96%87%E4%BB%B6%E4%B8%AD%E7%9A%84%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%E4%BF%A1%E6%81%AF-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>PE文件中的数字签名信息(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AD%BE%E5%90%8D%E7%9A%84%E4%BD%8D%E7%BD%AE"><span class="nav-number">2.</span> <span class="nav-text">签名的位置</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AD%BE%E5%90%8D%E7%9A%84%E6%A0%BC%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">签名的格式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AD%BE%E5%90%8D%E7%9A%84%E9%AA%8C%E8%AF%81"><span class="nav-number">4.</span> <span class="nav-text">签名的验证</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AD%BE%E5%90%8D%E7%9A%84%E6%8F%90%E5%8F%96"><span class="nav-number">5.</span> <span class="nav-text">签名的提取</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/12/20/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/PE%E6%96%87%E4%BB%B6%E4%B8%AD%E7%9A%84%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%E4%BF%A1%E6%81%AF-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          PE文件中的数字签名信息(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+      
+
+      <time title="创建时间：2019-12-20 10:36:39 / 修改时间：17:30:41" itemprop="dateCreated datePublished" datetime="2019-12-20T10:36:39+08:00">2019-12-20</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/" itemprop="url" rel="index"><span itemprop="name">数字签名</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>PE文件数字签名使用的是 <code>Authenticode</code> 数字签名格式，它用来验证二进制程序的来源和完整性。<br>基于公开密匙加密标准 <code>PKCS #7</code> 来签名数据，并使用 <code>X.509</code> 证书来关联二进制程序与其发布者。</p>
+<p>关于在PE文件中的 <code>Authenticode</code> 格式签名，微软给出了详细的解释，下载链接如下：<br><a target="_blank" rel="noopener" href="http://download.microsoft.com/download/9/c/5/9c5b2167-8017-4bae-9fde-d599bac8184a/Authenticode_PE.docx">http://download.microsoft.com/download/9/c/5/9c5b2167-8017-4bae-9fde-d599bac8184a/Authenticode_PE.docx</a></p>
+<h4 id="签名的位置"><a href="#签名的位置" class="headerlink" title="签名的位置"></a>签名的位置</h4><p>在PE文件数据目录表中，存储着签名信息的偏移地址和大小，如下图所示</p>
+<p><img src="01.png" alt="签名位置"></p>
+<p>灰色背景的部分，不参与签名的hash计算。粗体的部分，就是签名的相关内容。</p>
+<h4 id="签名的格式"><a href="#签名的格式" class="headerlink" title="签名的格式"></a>签名的格式</h4><p>提取出来的签名信息，如下结构体所示，相关信息都在 <code>Wintrust.h</code> 头文件中定义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">WIN_CERTIFICATE</span> &#123;</span></span><br><span class="line">    DWORD    dwLength; <span class="comment">// 签名证书二进制数据的长度</span></span><br><span class="line">    WORD     wRevision; <span class="comment">// 签名证书的版本号</span></span><br><span class="line">    WORD     wCertificateType; <span class="comment">// 签名证书的类型</span></span><br><span class="line">    BYTE     bCertificate[ANYSIZE_ARRAY]; <span class="comment">// 签名证书二进制数据</span></span><br><span class="line">&#125; WIN_CERTIFICATE, *LPWIN_CERTIFICATE;</span><br></pre></td></tr></table></figure>
+
+<p><code>wRevision</code> 签名证书版本号，内容如下所示</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0x0100</td>
+<td>WIN_CERT_REVISION_1_0</td>
+<td>Version 1 is the legacy version of WIN_CERTIFICATE. <br />It is supported only for verifying legacy Authenticode signatures.</td>
+</tr>
+<tr>
+<td>0x0200</td>
+<td>WIN_CERT_REVISION_2_0</td>
+<td>Version 2 is the current version of WIN_CERTIFICATE.</td>
+</tr>
+</tbody></table>
+<p><code>wCertificateType</code> 签名证书类型，这里值为 <code>0x0002</code> 表示 <code>Authenticode signatures</code> 类型</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0x0001</td>
+<td>WIN_CERT_TYPE_X509</td>
+<td>bCertificate contains an X.509 Certificate</td>
+</tr>
+<tr>
+<td>0x0002</td>
+<td>WIN_CERT_TYPE_PKCS_SIGNED_DATA</td>
+<td>bCertificate contains a PKCS SignedData structure</td>
+</tr>
+<tr>
+<td>0x0003</td>
+<td>WIN_CERT_TYPE_RESERVED_1</td>
+<td>Reserved</td>
+</tr>
+<tr>
+<td>0x0004</td>
+<td>WIN_CERT_TYPE_TS_STACK_SIGNED</td>
+<td>Terminal Server Protocol Stack Certificate signing</td>
+</tr>
+</tbody></table>
+<p><code>bCertificate[ANYSIZE_ARRAY]</code> 签名证书的二进制数据，使用的是 <code>ASN.1</code> 语法 <code>BER</code> 编码格式。</p>
+<h4 id="签名的验证"><a href="#签名的验证" class="headerlink" title="签名的验证"></a>签名的验证</h4><p>在应用层可以使用 <code>Wintrust.lib</code> 库中的 <code>WinVerifyTrust</code> 函数来验证签名的信息</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">LONG WINAPI <span class="title">WinVerifyTrust</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ HWND   hWnd,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ GUID   *pgActionID,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ LPVOID pWVTData</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>经过测试，在使用 <code>WinVerifyTrust</code> 验证签名时，偶尔会出现响应特别慢的情况。假如我们在驱动中<br>做进程签名拦截，借助于应用层验证签名时，就会造成系统卡顿现象。或者使用 <code>openssl</code> 库来验证签名，<br>可以避免卡顿。</p>
+<p>另一种方案就是直接在驱动中验证，自行实现签名的验证代码，可以加快检测速度，但是显然这种方案工作量<br>特别庞大。经过研究发现 <code>commonName</code> 信息在签名二进制数据中是以 <code>UTF8</code> 格式明文存储的，所以可以采取<br>只验证 <code>commonName</code> 信息是否在黑名单中，而不验证整个证书链是否有效的简化方案。</p>
+<h4 id="签名的提取"><a href="#签名的提取" class="headerlink" title="签名的提取"></a>签名的提取</h4><p>在驱动中提取签名二进制数据信息，相关结构体的定义如下，我们不关心的成员就不再详细定义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">DOS_HEADER</span> &#123;</span></span><br><span class="line">    USHORT e_magic;</span><br><span class="line">    USHORT e_res[<span class="number">29</span>];</span><br><span class="line">    UINT32 e_lfanew;</span><br><span class="line">&#125; DOS_HEADER, *PDOS_HEADER;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">FILE_HEADER</span> &#123;</span></span><br><span class="line">    UINT32 Reserved[<span class="number">5</span>];</span><br><span class="line">&#125; FILE_HEADER, *PFILE_HEADER;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">DATA_DIRECTORY</span> &#123;</span></span><br><span class="line">    UINT32 VAddr;</span><br><span class="line">    UINT32 Size;</span><br><span class="line">&#125; DATA_DIRECTORY, *PDATA_DIRECTORY;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">OPTIONAL_HEADER32</span> &#123;</span></span><br><span class="line">    USHORT Magic;</span><br><span class="line">    USHORT Reserved1[<span class="number">11</span>];</span><br><span class="line">    UINT32 ImageBase; <span class="comment">// 32</span></span><br><span class="line">    USHORT Reserved2[<span class="number">20</span>];</span><br><span class="line">    UINT32 Reserved3[<span class="number">4</span>]; <span class="comment">// 32</span></span><br><span class="line">    USHORT Reserved4[<span class="number">4</span>];</span><br><span class="line">    DATA_DIRECTORY DataDir[<span class="number">16</span>];</span><br><span class="line">&#125; OPTIONAL_HEADER32, *POPTIONAL_HEADER32;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">OPTIONAL_HEADER64</span> &#123;</span></span><br><span class="line">    USHORT Magic;</span><br><span class="line">    USHORT Reserved1[<span class="number">11</span>];</span><br><span class="line">    UINT64 ImageBase; <span class="comment">// 64</span></span><br><span class="line">    USHORT Reserved2[<span class="number">20</span>];</span><br><span class="line">    UINT64 Reserved3[<span class="number">4</span>]; <span class="comment">// 64</span></span><br><span class="line">    USHORT Reserved4[<span class="number">4</span>];</span><br><span class="line">    DATA_DIRECTORY DataDir[<span class="number">16</span>];</span><br><span class="line">&#125; OPTIONAL_HEADER64, *POPTIONAL_HEADER64;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">NT_HEADERS32</span> &#123;</span></span><br><span class="line">    UINT32 Signature;</span><br><span class="line">    FILE_HEADER FileHeader;</span><br><span class="line">    OPTIONAL_HEADER32 OptHeader;</span><br><span class="line">&#125; NT_HEADERS32, *PNT_HEADERS32;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">NT_HEADERS64</span> &#123;</span></span><br><span class="line">    UINT32 Signature;</span><br><span class="line">    FILE_HEADER FileHeader;</span><br><span class="line">    OPTIONAL_HEADER64 OptHeader;</span><br><span class="line">&#125; NT_HEADERS64, *PNT_HEADERS64;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">WIN_CERT</span> &#123;</span></span><br><span class="line">    UINT32 Length;</span><br><span class="line">    USHORT Revision;</span><br><span class="line">    USHORT CertType;</span><br><span class="line">&#125; WIN_CERT, *PWIN_CERT;</span><br></pre></td></tr></table></figure>
+
+<p>提取签名信息的函数如下，假定参数的路径为 <code>\\??\\C:\Windows\System32\calc.exe</code> 这种格式</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOLEAN <span class="title">CheckSignProcess</span><span class="params">(IN PWCHAR Path)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PWIN_CERT WinCert = <span class="literal">NULL</span>;</span><br><span class="line">    PDOS_HEADER DosHeader = <span class="literal">NULL</span>;</span><br><span class="line">    PNT_HEADERS32 NtHeader32 = <span class="literal">NULL</span>;</span><br><span class="line">    PNT_HEADERS64 NtHeader64 = <span class="literal">NULL</span>;</span><br><span class="line">    DATA_DIRECTORY DataDir = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    BOOLEAN bRet = FALSE; <span class="comment">// 默认不在黑名单中</span></span><br><span class="line">    HANDLE hFile = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    IO_STATUS_BLOCK ioStatus = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    OBJECT_ATTRIBUTES objAttrib = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    FILE_POSITION_INFORMATION PosInfo = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="comment">// 检查参数</span></span><br><span class="line">    <span class="keyword">if</span> (Path == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 初始化文件属性</span></span><br><span class="line">    InitializeObjectAttributes(&amp;objAttrib, &amp;Path,</span><br><span class="line">        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="comment">// 打开目标文件</span></span><br><span class="line">    Status = ZwOpenFile(</span><br><span class="line">        &amp;hFile, GENERIC_READ | SYNCHRONIZE, &amp;objAttrib, &amp;ioStatus,</span><br><span class="line">        FILE_SHARE_READ, FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 申请PE头内存空间</span></span><br><span class="line">        DosHeader = (PDOS_HEADER)ExAllocatePoolWithTag(NonPagedPool, 1024, &#x27;MEM&#x27;);</span><br><span class="line">        <span class="keyword">if</span> (DosHeader == <span class="literal">NULL</span>) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 读取PE头信息到缓冲区</span></span><br><span class="line">        Status = ZwReadFile(hFile, <span class="literal">NULL</span>, <span class="literal">NULL</span>, <span class="literal">NULL</span>,</span><br><span class="line">            &amp;ioStatus, (PVOID)DosHeader, <span class="number">1024</span>, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 检测DOS头信息</span></span><br><span class="line">        <span class="keyword">if</span> (ioStatus.Information &lt; <span class="keyword">sizeof</span>(DOS_HEADER)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">if</span> (DosHeader-&gt;e_magic != <span class="number">0x5A4D</span>) <span class="keyword">break</span>; <span class="comment">// IMAGE_DOS_SIGNATURE</span></span><br><span class="line">        NtHeader32 = (PNT_HEADERS32)((PUCHAR)DosHeader + DosHeader-&gt;e_lfanew);</span><br><span class="line">        <span class="comment">// 被改造过的程序重新读NT头</span></span><br><span class="line">        <span class="keyword">if</span> (DosHeader-&gt;e_lfanew &gt; <span class="number">0x108</span>) <span class="comment">// 大于默认偏移</span></span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 设置文件偏移位置</span></span><br><span class="line">            PosInfo.CurrentByteOffset.QuadPart = DosHeader-&gt;e_lfanew;</span><br><span class="line">            Status = ZwSetInformationFile(hFile, &amp;ioStatus, &amp;PosInfo,</span><br><span class="line">                <span class="keyword">sizeof</span>(FILE_POSITION_INFORMATION), FilePositionInformation);</span><br><span class="line">            <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">            <span class="comment">// 读取NT头信息到缓冲区</span></span><br><span class="line">            Status = ZwReadFile(hFile, <span class="literal">NULL</span>, <span class="literal">NULL</span>, <span class="literal">NULL</span>,</span><br><span class="line">                &amp;ioStatus, (PVOID)DosHeader, <span class="number">1024</span>, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">            <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">            <span class="keyword">if</span> (ioStatus.Information &lt; <span class="keyword">sizeof</span>(NT_HEADERS32)) <span class="keyword">break</span>;</span><br><span class="line">            NtHeader32 = (PNT_HEADERS32)DosHeader;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检测NT头信息</span></span><br><span class="line">        <span class="keyword">if</span> (NtHeader32-&gt;Signature != <span class="number">0x4550</span>) <span class="keyword">break</span>; <span class="comment">// IMAGE_NT_SIGNATURE</span></span><br><span class="line">        <span class="keyword">if</span> (NtHeader32-&gt;OptHeader.Magic == <span class="number">0x10B</span>) <span class="comment">// IMAGE_NT_OPTIONAL_HDR32_MAGIC</span></span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// IMAGE_DIRECTORY_ENTRY_SECURITY</span></span><br><span class="line">            DataDir.VAddr = NtHeader32-&gt;OptHeader.DataDir[<span class="number">4</span>].VAddr;</span><br><span class="line">            DataDir.Size = NtHeader32-&gt;OptHeader.DataDir[<span class="number">4</span>].Size;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (NtHeader32-&gt;OptHeader.Magic == <span class="number">0x20B</span>) <span class="comment">// IMAGE_NT_OPTIONAL_HDR64_MAGIC</span></span><br><span class="line">        &#123;</span><br><span class="line">            NtHeader64 = (PNT_HEADERS64)NtHeader32;</span><br><span class="line">            <span class="comment">// IMAGE_DIRECTORY_ENTRY_SECURITY</span></span><br><span class="line">            DataDir.VAddr = NtHeader64-&gt;OptHeader.DataDir[<span class="number">4</span>].VAddr;</span><br><span class="line">            DataDir.Size = NtHeader64-&gt;OptHeader.DataDir[<span class="number">4</span>].Size;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 申请签名缓冲区</span></span><br><span class="line">        <span class="keyword">if</span> ((DataDir.VAddr == <span class="number">0</span>) || (DataDir.Size == <span class="number">0</span>)) <span class="keyword">break</span>; <span class="comment">// 无签名</span></span><br><span class="line">        WinCert = (PWIN_CERT)ExAllocatePoolWithTag(NonPagedPool, DataDir.Size, &#x27;MEM&#x27;);</span><br><span class="line">        <span class="keyword">if</span> (WinCert == <span class="literal">NULL</span>) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 设置文件偏移位置</span></span><br><span class="line">        PosInfo.CurrentByteOffset.QuadPart = DataDir.VAddr;</span><br><span class="line">        Status = ZwSetInformationFile(hFile, &amp;ioStatus, &amp;PosInfo,</span><br><span class="line">            <span class="keyword">sizeof</span>(FILE_POSITION_INFORMATION), FilePositionInformation);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 读取文件签名信息</span></span><br><span class="line">        Status = ZwReadFile(hFile, <span class="literal">NULL</span>, <span class="literal">NULL</span>, <span class="literal">NULL</span>,</span><br><span class="line">            &amp;ioStatus, (PVOID)WinCert, DataDir.Size, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">if</span> (ioStatus.Information != DataDir.Size) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 检查签名信息是否在黑名单中</span></span><br><span class="line">        <span class="keyword">if</span> (WinCert-&gt;CertType != <span class="number">0x0002</span>) <span class="keyword">break</span>; </span><br><span class="line">        bRet = CheckSign((PUCHAR)(WinCert + <span class="number">1</span>), DataDir.Size - <span class="keyword">sizeof</span>(WIN_CERT));</span><br><span class="line">        <span class="comment">// 这里CheckSign函数在下篇文章中再说明</span></span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line">    <span class="comment">// 收尾处理</span></span><br><span class="line">    ZwClose(hFile);</span><br><span class="line">    <span class="keyword">if</span> (WinCert != <span class="literal">NULL</span>) ExFreePool(WinCert);</span><br><span class="line">    <span class="keyword">if</span> (DosHeader != <span class="literal">NULL</span>) ExFreePool(DosHeader);</span><br><span class="line">    <span class="keyword">return</span> bRet;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/" rel="tag"># 数字签名</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/12/19/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/%E4%BD%BF%E7%94%A8XCA%E5%B7%A5%E5%85%B7%E7%94%9F%E6%88%90%E7%AD%BE%E5%90%8D%E8%AF%81%E4%B9%A6-1/" rel="prev" title="使用XCA工具生成签名证书(1)">
+                  <i class="fa fa-chevron-left"></i> 使用XCA工具生成签名证书(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/12/23/%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D/PE%E6%96%87%E4%BB%B6%E4%B8%AD%E7%9A%84%E6%95%B0%E5%AD%97%E7%AD%BE%E5%90%8D%E4%BF%A1%E6%81%AF-2/" rel="next" title="PE文件中的数字签名信息(2)">
+                  PE文件中的数字签名信息(2) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

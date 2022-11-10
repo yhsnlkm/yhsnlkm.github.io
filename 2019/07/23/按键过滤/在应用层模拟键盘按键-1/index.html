@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 在某些情况下，我们需要模拟键盘按键，用程序替代人工按键操作， 可以使用的方法包含：使用 SendMessage 或 PostMessage 发送按键消息，使用 keybd_event 函数 发送">
+<meta property="og:type" content="article">
+<meta property="og:title" content="在应用层模拟键盘按键(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/07/23/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%9C%A8%E5%BA%94%E7%94%A8%E5%B1%82%E6%A8%A1%E6%8B%9F%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 在某些情况下，我们需要模拟键盘按键，用程序替代人工按键操作， 可以使用的方法包含：使用 SendMessage 或 PostMessage 发送按键消息，使用 keybd_event 函数 发送">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-07-23T10:08:32.000Z">
+<meta property="article:modified_time" content="2019-08-05T07:34:01.764Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="按键过滤">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/07/23/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%9C%A8%E5%BA%94%E7%94%A8%E5%B1%82%E6%A8%A1%E6%8B%9F%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>在应用层模拟键盘按键(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%91%E9%80%81%E6%8C%89%E9%94%AE%E6%B6%88%E6%81%AF"><span class="nav-number">2.</span> <span class="nav-text">发送按键消息</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B0%83%E7%94%A8%E6%8C%89%E9%94%AE%E4%BA%8B%E4%BB%B6%E5%87%BD%E6%95%B0"><span class="nav-number">3.</span> <span class="nav-text">调用按键事件函数</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B0%83%E7%94%A8%E5%8F%91%E9%80%81%E8%BE%93%E5%85%A5%E5%87%BD%E6%95%B0"><span class="nav-number">4.</span> <span class="nav-text">调用发送输入函数</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/07/23/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%9C%A8%E5%BA%94%E7%94%A8%E5%B1%82%E6%A8%A1%E6%8B%9F%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          在应用层模拟键盘按键(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-07-23 18:08:32" itemprop="dateCreated datePublished" datetime="2019-07-23T18:08:32+08:00">2019-07-23</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2019-08-05 15:34:01" itemprop="dateModified" datetime="2019-08-05T15:34:01+08:00">2019-08-05</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/" itemprop="url" rel="index"><span itemprop="name">按键过滤</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>在某些情况下，我们需要模拟键盘按键，用程序替代人工按键操作，<br>可以使用的方法包含：使用 <code>SendMessage</code> 或 <code>PostMessage</code> 发送按键消息，使用 <code>keybd_event</code> 函数<br>发送按键动作（该函数被 <code>SendInput</code> 取代），使用 <code>SendInput</code> 函数发送按键动作，等等。</p>
+<h4 id="发送按键消息"><a href="#发送按键消息" class="headerlink" title="发送按键消息"></a>发送按键消息</h4><p>使用 <code>WM_KEYDOWN</code> 或者 <code>WM_KEYUP</code> 并不好使，推测可能是 <code>lParam</code> 参数设置错误，<br>使用 <code>WM_CHAR</code> 消息都能够成功，只不过发送消息之前，需要先获取窗口句柄。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">HWND hWnd = FindWindow(<span class="literal">NULL</span>, <span class="string">&quot;无标题 - 记事本&quot;</span>);</span><br><span class="line">HWND hEdit = FindWindowEx(hWnd, <span class="literal">NULL</span>, <span class="string">&quot;EDIT&quot;</span>, <span class="literal">NULL</span>);</span><br><span class="line">SendMessage(hEdit, WM_CHAR, <span class="number">0x41</span>, <span class="number">0</span>); <span class="comment">// 输入A</span></span><br><span class="line">SendMessage(hEdit, WM_KEYDOWN, VK_SPACE, <span class="number">0</span>); <span class="comment">// 按下空格</span></span><br><span class="line">SendMessage(hEdit, WM_KEYUP, VK_SPACE, <span class="number">0</span>); <span class="comment">// 弹起空格</span></span><br><span class="line">SendMessage(hEdit, WM_CHAR, <span class="number">0x41</span>, <span class="number">0</span>); <span class="comment">// 输入A</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="调用按键事件函数"><a href="#调用按键事件函数" class="headerlink" title="调用按键事件函数"></a>调用按键事件函数</h4><p>该函数格式如下所示，其中参数 <code>bVk</code> 设置输入的虚拟按键，参数 <code>dwFlags</code> 设置按下或弹起动作</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID WINAPI <span class="title">keybd_event</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ BYTE      bVk,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ BYTE      bScan,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ DWORD     dwFlags,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ ULONG_PTR dwExtraInfo</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 模拟按下Shift+A组合键，可以使用Sleep()增加按键间隔</span></span><br><span class="line">keybd_event(VK_SHIFT, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="comment">// 按下Shift键</span></span><br><span class="line">keybd_event(<span class="number">0x41</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="comment">// 按下A键</span></span><br><span class="line">keybd_event(<span class="number">0x41</span>, <span class="number">0</span>, KEYEVENTF_KEYUP, <span class="number">0</span>); <span class="comment">// 松开A键</span></span><br><span class="line">keybd_event(VK_SHIFT, <span class="number">0</span>, KEYEVENTF_KEYUP, <span class="number">0</span>); <span class="comment">// 松开Shift键</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="调用发送输入函数"><a href="#调用发送输入函数" class="headerlink" title="调用发送输入函数"></a>调用发送输入函数</h4><p>该函数格式如下所示，参数 <code>nInputs</code> 描述输入 <code>INPUT</code> 结构体数组的数量，参数 <code>cbSize</code> 表示对应总大小</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">UINT WINAPI <span class="title">SendInput</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ UINT    nInputs,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ LPINPUT pInputs,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ <span class="keyword">int</span>     cbSize</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">tagINPUT</span> &#123;</span></span><br><span class="line">  DWORD type;</span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    MOUSEINPUT    mi;</span><br><span class="line">    KEYBDINPUT    ki;</span><br><span class="line">    HARDWAREINPUT hi;</span><br><span class="line">  &#125;;</span><br><span class="line">&#125; INPUT, *PINPUT;</span><br></pre></td></tr></table></figure>
+
+<p>结构体中的参数 <code>type</code> 可取值 <code>INPUT_MOUSE</code> <code>INPUT_KEYBOARD</code> <code>INPUT_HARDWARE</code> 来对应后续参数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">tagMOUSEINPUT</span> &#123;</span></span><br><span class="line">  LONG      dx;</span><br><span class="line">  LONG      dy;</span><br><span class="line">  DWORD     mouseData;</span><br><span class="line">  DWORD     dwFlags;</span><br><span class="line">  DWORD     time;</span><br><span class="line">  ULONG_PTR dwExtraInfo;</span><br><span class="line">&#125; MOUSEINPUT, *PMOUSEINPUT;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">tagKEYBDINPUT</span> &#123;</span></span><br><span class="line">  WORD      wVk;</span><br><span class="line">  WORD      wScan;</span><br><span class="line">  DWORD     dwFlags;</span><br><span class="line">  DWORD     time;</span><br><span class="line">  ULONG_PTR dwExtraInfo;</span><br><span class="line">&#125; KEYBDINPUT, *PKEYBDINPUT;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">tagHARDWAREINPUT</span> &#123;</span></span><br><span class="line">  DWORD uMsg;</span><br><span class="line">  WORD  wParamL;</span><br><span class="line">  WORD  wParamH;</span><br><span class="line">&#125; HARDWAREINPUT, *PHARDWAREINPUT;</span><br></pre></td></tr></table></figure>
+
+<p>我们这里使用 <code>INPUT_KEYBOARD</code> 来发送键盘按键，结构体<code>KEYBDINPUT</code> 与 <code>keybd_event</code> 取值相同</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">INPUT input = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">input.type = INPUT_KEYBOARD;</span><br><span class="line">input.ki.wVk = VK_SHIFT;</span><br><span class="line">SendInput(<span class="number">1</span>, &amp;input, <span class="keyword">sizeof</span>(INPUT)); <span class="comment">// 按下Shift</span></span><br><span class="line">input.ki.dwFlags = KEYEVENTF_KEYUP;</span><br><span class="line">SendInput(<span class="number">1</span>, &amp;input, <span class="keyword">sizeof</span>(INPUT)); <span class="comment">// 弹起Shift</span></span><br></pre></td></tr></table></figure>
+
+<p>经实验发现每次发送1个信息时能够成功，但是改为同时发送2个信息就不成功，不太清楚原因。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/" rel="tag"># 按键过滤</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/07/22/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E4%BD%BF%E7%94%A8WFP%E5%AE%9E%E7%8E%B0%E6%95%B0%E6%8D%AE%E5%8C%85%E8%BF%87%E6%BB%A4-2/" rel="prev" title="使用WFP实现数据包过滤(2)">
+                  <i class="fa fa-chevron-left"></i> 使用WFP实现数据包过滤(2)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/07/24/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8SSDTHOOK%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E4%BF%9D%E6%8A%A4-2/" rel="next" title="使用SSDTHOOK实现进程保护(2)">
+                  使用SSDTHOOK实现进程保护(2) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="使用SAM功能获取策略 看到这里，设置 密码复杂度 策略仍然需要使用inf配置文件，那有没有不借助于inf文件的办法？  使用IDA逆向XP系统中的 netapi32.dll 模块，查看 NetUse">
+<meta property="og:type" content="article">
+<meta property="og:title" content="用SAM函数修改密码策略(3)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/07/16/%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5/%E7%94%A8SAM%E5%87%BD%E6%95%B0%E4%BF%AE%E6%94%B9%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5-3/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="使用SAM功能获取策略 看到这里，设置 密码复杂度 策略仍然需要使用inf配置文件，那有没有不借助于inf文件的办法？  使用IDA逆向XP系统中的 netapi32.dll 模块，查看 NetUse">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-07-16T03:42:44.000Z">
+<meta property="article:modified_time" content="2019-12-30T02:47:36.471Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="密码策略">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/07/16/%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5/%E7%94%A8SAM%E5%87%BD%E6%95%B0%E4%BF%AE%E6%94%B9%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5-3/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>用SAM函数修改密码策略(3) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8SAM%E5%8A%9F%E8%83%BD%E8%8E%B7%E5%8F%96%E7%AD%96%E7%95%A5"><span class="nav-number">1.</span> <span class="nav-text">使用SAM功能获取策略</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B4%E5%90%88%E6%95%B0%E6%8D%AE%E5%A3%B0%E6%98%8E%E7%9A%84%E5%A4%B4%E6%96%87%E4%BB%B6"><span class="nav-number">2.</span> <span class="nav-text">整合数据声明的头文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B4%E5%90%88%E5%87%BD%E6%95%B0%E7%9A%84%E4%BB%A3%E7%A0%81%E6%96%87%E4%BB%B6"><span class="nav-number">3.</span> <span class="nav-text">整合函数的代码文件</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/07/16/%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5/%E7%94%A8SAM%E5%87%BD%E6%95%B0%E4%BF%AE%E6%94%B9%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          用SAM函数修改密码策略(3)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-07-16 11:42:44" itemprop="dateCreated datePublished" datetime="2019-07-16T11:42:44+08:00">2019-07-16</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2019-12-30 10:47:36" itemprop="dateModified" datetime="2019-12-30T10:47:36+08:00">2019-12-30</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5/" itemprop="url" rel="index"><span itemprop="name">密码策略</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="使用SAM功能获取策略"><a href="#使用SAM功能获取策略" class="headerlink" title="使用SAM功能获取策略"></a>使用SAM功能获取策略</h4><p>看到这里，设置 <code>密码复杂度</code> 策略仍然需要使用inf配置文件，那有没有不借助于inf文件的办法？</p>
+<p>使用IDA逆向XP系统中的 <code>netapi32.dll</code> 模块，查看 <code>NetUserModuleGet</code> 和 <code>NetUserModuleSet</code> 函数，<br>可以看到引用了一系列的以Sam开头的函数，然后找到这些Sam开头的函数是在 <code>samlib.dll</code> 导出的。</p>
+<p>经过搜索，在 <code>WDK7.1</code> 开发包中，找到了 <code>ntsam.h</code> 头文件和 <code>samlib.lib</code> 库文件。然后在密码破解<br>神器 <code>mimikatz</code> 工具的源码中，也找到了相关的 <code>kull_m_samlib.h</code> 和 <code>samlib.lib</code> 文件。</p>
+<p>最后再对照着 <code>ReactOS</code> 的源码，找其中一些共通之处，发现密码策略涉及到的结构体为</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">DOMAIN_PASSWORD_INFORMATION</span> &#123;</span></span><br><span class="line">    USHORT MinPasswordLength; <span class="comment">// 密码最小长度</span></span><br><span class="line">    USHORT PasswordHistoryLength; <span class="comment">// 密码历史记录个数</span></span><br><span class="line">    ULONG PasswordProperties; <span class="comment">// 密码规则，包含密码复杂度</span></span><br><span class="line">    LARGE_INTEGER MaxPasswordAge; <span class="comment">// 最大密码过期期限</span></span><br><span class="line">    LARGE_INTEGER MinPasswordAge; <span class="comment">// 最小密码过期期限</span></span><br><span class="line">&#125; DOMAIN_PASSWORD_INFORMATION, *PDOMAIN_PASSWORD_INFORMATION;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 密码规则 PasswordProperties 对应的标志</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> DOMAIN_PASSWORD_COMPLEX             0x00000001L</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> DOMAIN_PASSWORD_NO_ANON_CHANGE      0x00000002L</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> DOMAIN_PASSWORD_NO_CLEAR_CHANGE     0x00000004L</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> DOMAIN_LOCKOUT_ADMINS               0x00000008L</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> DOMAIN_PASSWORD_STORE_CLEARTEXT     0x00000010L</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> DOMAIN_REFUSE_PASSWORD_CHANGE       0x00000020L</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到使用Sam功能可以获取到 <code>密码复杂度</code> 策略，是在输出到外部时被忽略掉了。</p>
+<p>在 <code>WDK7.1</code> 中的 <code>ntsam.h</code> 文件无法直接使用，我们拷出来进行改造，主要是增加函数 <code>NTAPI</code> 声明，比如</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">SamFreeMemory</span><span class="params">(__in PVOID Buffer)</span></span>; <span class="comment">// 原始的函数声明</span></span><br><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">SamFreeMemory</span><span class="params">(__in PVOID Buffer)</span></span>; <span class="comment">// 修改以后的函数声明</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="整合数据声明的头文件"><a href="#整合数据声明的头文件" class="headerlink" title="整合数据声明的头文件"></a>整合数据声明的头文件</h4><p>我们这里把相关功能整理到单独的h和cpp文件中，新建头文件然后补充一些相关的定义，如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> once</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifndef</span> NT_SUCCESS</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NT_SUCCESS(x) ((NTSTATUS)(x) &gt;= 0)</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> STRING OEM_STRING;</span><br><span class="line"><span class="keyword">typedef</span> PSTRING POEM_STRING;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">OBJECT_ATTRIBUTES</span> &#123;</span></span><br><span class="line">    ULONG Length;</span><br><span class="line">    HANDLE RootDirectory;</span><br><span class="line">    PUNICODE_STRING ObjectName;</span><br><span class="line">    ULONG Attributes;</span><br><span class="line">    PVOID SecurityDescriptor;</span><br><span class="line">    PVOID SecurityQualityOfService;</span><br><span class="line">&#125; OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;ntsecapi.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&quot;ntsam.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> comment(lib, <span class="meta-string">&quot;advapi32.lib&quot;</span>)</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> comment(lib, <span class="meta-string">&quot;samlib.lib&quot;</span>)</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> comment(lib, <span class="meta-string">&quot;ntdll.lib&quot;</span>)</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">extern</span> <span class="string">&quot;C&quot;</span> NTSYSAPI</span><br><span class="line">LARGE_INTEGER NTAPI</span><br><span class="line">RtlExtendedMagicDivide(</span><br><span class="line">__in LARGE_INTEGER Dividend,</span><br><span class="line">__in LARGE_INTEGER MagicDivisor,</span><br><span class="line">__in CCHAR ShiftCount);</span><br><span class="line"></span><br><span class="line"><span class="keyword">extern</span> <span class="string">&quot;C&quot;</span> NTSYSAPI</span><br><span class="line">LARGE_INTEGER NTAPI</span><br><span class="line">RtlExtendedIntegerMultiply(</span><br><span class="line">__in LARGE_INTEGER Multiplicand,</span><br><span class="line">__in LONG Multiplier</span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">DOMAINPWD_INFO</span> &#123;</span></span><br><span class="line">    DWORD pwd_prop; <span class="comment">// 复杂度(位标志)</span></span><br><span class="line">    WORD min_len; <span class="comment">// 最小长度</span></span><br><span class="line">    DWORD max_age; <span class="comment">// 最长期限(秒)</span></span><br><span class="line">    DWORD min_age; <span class="comment">// 最短期限(秒)</span></span><br><span class="line">    WORD hist_len; <span class="comment">// 历史数量</span></span><br><span class="line">&#125; DOMAINPWD_INFO, *PDOMAINPWD_INFO;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 密码策略</span></span><br><span class="line"><span class="function">BOOL <span class="title">GetDomainPasswordInfo</span><span class="params">(DOMAINPWD_INFO &amp;stInfo)</span></span>;</span><br><span class="line"><span class="function">BOOL <span class="title">SetDomainPasswordInfo</span><span class="params">(DOMAINPWD_INFO &amp;stInfo)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>RtlExtendedMagicDivide</code> 和 <code>RtlExtendedIntegerMultiply</code> 函数是在 <code>ntdll.dll</code> 中导出的，<br>同样在 <code>WDK7.1</code> 中可以找到 <code>ntdll.lib</code> 库文件。这两个函数的作用，主要是查询完密码策略后，<br>进行数据转换计算用，其功能是把64位数扩展到128位数进行乘除操作。</p>
+<h4 id="整合函数的代码文件"><a href="#整合函数的代码文件" class="headerlink" title="整合函数的代码文件"></a>整合函数的代码文件</h4><p>使用Sam功能查询到的策略信息，其中时间相关的数据均为 <code>DeltaTime</code> 时间，需要转换成 <code>Seconds</code> 秒数，<br>如下为 <code>DeltaTime</code> 与 <code>Seconds</code> 之间的转换函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD <span class="title">DeltaTimeToSeconds</span><span class="params">(LARGE_INTEGER &amp;Dividend)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    DWORD result = <span class="number">0</span>;</span><br><span class="line">    LARGE_INTEGER Seconds = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    LARGE_INTEGER MagicDivisor = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="keyword">if</span> (Dividend.QuadPart != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        MagicDivisor.QuadPart = <span class="number">0xD6BF94D5E57A42BD</span>L;</span><br><span class="line">        Seconds = RtlExtendedMagicDivide(Dividend, MagicDivisor, <span class="number">23</span>);</span><br><span class="line">        <span class="keyword">if</span> (Seconds.HighPart == <span class="number">0xFFFFFFFF</span>)</span><br><span class="line">            result = -(<span class="keyword">int</span>)Seconds.LowPart;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            result = <span class="number">0xFFFFFFFF</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">LARGE_INTEGER <span class="title">SecondsToDeltaTime</span><span class="params">(DWORD Seconds)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    LARGE_INTEGER result = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    LARGE_INTEGER DeltaTime = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    LARGE_INTEGER Multiplicand = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="keyword">if</span> (Seconds != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        result.HighPart = <span class="number">0x80000000</span>;</span><br><span class="line">        <span class="keyword">if</span> (Seconds == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> result;</span><br><span class="line">        Multiplicand.QuadPart = Seconds;</span><br><span class="line">        DeltaTime = RtlExtendedIntegerMultiply(Multiplicand, <span class="number">10000000</span>);</span><br><span class="line">        <span class="keyword">if</span> (DeltaTime.QuadPart &lt; <span class="number">0</span>) <span class="keyword">return</span> result;</span><br><span class="line">        DeltaTime.QuadPart = -DeltaTime.QuadPart;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> DeltaTime;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在读取密码策略之前，我们还需要获取账户所在域的SID信息，用IDA逆向时是使用Sam函数获取的，<br>但是这个信息还可以用其他方式获取到，在 <code>ReactOS</code> 和 <code>mimikatz</code> 中就是使用的 <code>LSA</code> 函数进行查询的</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">GetAccountDomainSid</span><span class="params">(PSID *DomainSid)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 打开LSA本地策略</span></span><br><span class="line">    LSA_HANDLE hPolicy = <span class="literal">NULL</span>;</span><br><span class="line">    LSA_OBJECT_ATTRIBUTES ObjAttrib = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    NTSTATUS Status = LsaOpenPolicy(<span class="literal">NULL</span>, &amp;ObjAttrib, POLICY_VIEW_LOCAL_INFORMATION, &amp;hPolicy);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> Status;</span><br><span class="line">    <span class="comment">// 查询本地账户域信息</span></span><br><span class="line">    PPOLICY_ACCOUNT_DOMAIN_INFO DomainInfo = <span class="literal">NULL</span>;</span><br><span class="line">    Status = LsaQueryInformationPolicy(hPolicy, PolicyAccountDomainInformation, (PVOID*)&amp;DomainInfo);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        LsaClose(hPolicy);</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 获取域SID信息</span></span><br><span class="line">    ULONG Length = GetLengthSid(DomainInfo-&gt;DomainSid);</span><br><span class="line">    *DomainSid = HeapAlloc(GetProcessHeap(), <span class="number">0</span>, Length);</span><br><span class="line">    <span class="keyword">if</span> (*DomainSid == <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        LsaFreeMemory(DomainInfo);</span><br><span class="line">        LsaClose(hPolicy);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0xC000009A</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 复制到输出参数</span></span><br><span class="line">    <span class="built_in">memcpy</span>(*DomainSid, DomainInfo-&gt;DomainSid, Length);</span><br><span class="line">    LsaFreeMemory(DomainInfo);</span><br><span class="line">    LsaClose(hPolicy);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>所有的准备工作都已完毕，如下为 <code>查询密码策略信息</code> 和 <code>设置密码策略信息</code> 的函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">GetDomainPasswordInfo</span><span class="params">(DOMAINPWD_INFO &amp;stInfo)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    BOOL bRetrun = FALSE;</span><br><span class="line">    PSID DomainSid = <span class="literal">NULL</span>;</span><br><span class="line">    ACCESS_MASK DesiredAccess = <span class="number">0</span>;</span><br><span class="line">    SAM_HANDLE ServerHandle = <span class="literal">NULL</span>;</span><br><span class="line">    SAM_HANDLE DomainHandle = <span class="literal">NULL</span>;</span><br><span class="line">    PDOMAIN_PASSWORD_INFORMATION PasswdInfo = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 连接本机SAM服务器</span></span><br><span class="line">        NTSTATUS Status = SamConnect(<span class="literal">NULL</span>, &amp;ServerHandle, SAM_SERVER_LOOKUP_DOMAIN, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 获取账户的域SID</span></span><br><span class="line">        Status = GetAccountDomainSid(&amp;DomainSid);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 打开本机SAM服务器中对应的域</span></span><br><span class="line">        SAM_HANDLE DomainHandle = <span class="literal">NULL</span>;</span><br><span class="line">        DesiredAccess = DOMAIN_READ_OTHER_PARAMETERS | DOMAIN_READ_PASSWORD_PARAMETERS;</span><br><span class="line">        Status = SamOpenDomain(ServerHandle, DesiredAccess, DomainSid, &amp;DomainHandle);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 查询域中的密码信息</span></span><br><span class="line">        Status = SamQueryInformationDomain(DomainHandle, DomainPasswordInformation, (PVOID*)&amp;PasswdInfo);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 转换对应信息</span></span><br><span class="line">        stInfo.pwd_prop = PasswdInfo-&gt;PasswordProperties;</span><br><span class="line">        stInfo.min_len = PasswdInfo-&gt;MinPasswordLength;</span><br><span class="line">        stInfo.max_age = DeltaTimeToSeconds(PasswdInfo-&gt;MaxPasswordAge);</span><br><span class="line">        <span class="comment">// 最大期限策略为0时，实际的数据为0xFFFFFFFF</span></span><br><span class="line">        <span class="keyword">if</span> (stInfo.max_age == <span class="number">0xFFFFFFFF</span>) stInfo.max_age = <span class="number">0</span>;</span><br><span class="line">        stInfo.min_age = DeltaTimeToSeconds(PasswdInfo-&gt;MinPasswordAge);</span><br><span class="line">        stInfo.hist_len = PasswdInfo-&gt;PasswordHistoryLength;</span><br><span class="line">        bRetrun = TRUE;</span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line">    <span class="comment">// 释放申请的内存</span></span><br><span class="line">    <span class="keyword">if</span> (PasswdInfo != <span class="literal">NULL</span>) SamFreeMemory(PasswdInfo);</span><br><span class="line">    <span class="keyword">if</span> (DomainSid != <span class="literal">NULL</span>) HeapFree(GetProcessHeap(), <span class="number">0</span>, DomainSid);</span><br><span class="line">    <span class="keyword">if</span> (DomainHandle != <span class="literal">NULL</span>) SamCloseHandle(DomainHandle);</span><br><span class="line">    <span class="keyword">if</span> (ServerHandle != <span class="literal">NULL</span>) SamCloseHandle(ServerHandle);</span><br><span class="line">    <span class="keyword">return</span> bRetrun;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">SetDomainPasswordInfo</span><span class="params">(DOMAINPWD_INFO &amp;stInfo)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    BOOL bRetrun = FALSE;</span><br><span class="line">    PSID DomainSid = <span class="literal">NULL</span>;</span><br><span class="line">    ACCESS_MASK DesiredAccess = <span class="number">0</span>;</span><br><span class="line">    SAM_HANDLE ServerHandle = <span class="literal">NULL</span>;</span><br><span class="line">    SAM_HANDLE DomainHandle = <span class="literal">NULL</span>;</span><br><span class="line">    DOMAIN_PASSWORD_INFORMATION PasswdInfo = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 连接本机SAM服务器</span></span><br><span class="line">        NTSTATUS Status = SamConnect(<span class="literal">NULL</span>, &amp;ServerHandle, SAM_SERVER_LOOKUP_DOMAIN, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 获取账户的域SID</span></span><br><span class="line">        Status = GetAccountDomainSid(&amp;DomainSid);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 打开本机SAM服务器中对应的域</span></span><br><span class="line">        SAM_HANDLE DomainHandle = <span class="literal">NULL</span>;</span><br><span class="line">        DesiredAccess = DOMAIN_WRITE_OTHER_PARAMETERS | DOMAIN_WRITE_PASSWORD_PARAMS;</span><br><span class="line">        Status = SamOpenDomain(ServerHandle, DesiredAccess, DomainSid, &amp;DomainHandle);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 转换对应信息</span></span><br><span class="line">        PasswdInfo.PasswordProperties = stInfo.pwd_prop;</span><br><span class="line">        PasswdInfo.MinPasswordLength = stInfo.min_len;</span><br><span class="line">        <span class="comment">// 最大期限策略为0时，实际的数据为0xFFFFFFFF</span></span><br><span class="line">        <span class="keyword">if</span> (stInfo.max_age == <span class="number">0</span>) stInfo.max_age = <span class="number">0xFFFFFFFF</span>;</span><br><span class="line">        PasswdInfo.MaxPasswordAge = SecondsToDeltaTime(stInfo.max_age);</span><br><span class="line">        PasswdInfo.MinPasswordAge = SecondsToDeltaTime(stInfo.min_age);</span><br><span class="line">        PasswdInfo.PasswordHistoryLength = stInfo.hist_len;</span><br><span class="line">        <span class="comment">// 设置域中的密码信息</span></span><br><span class="line">        Status = SamSetInformationDomain(DomainHandle, DomainPasswordInformation, &amp;PasswdInfo);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        bRetrun = TRUE;</span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line">    <span class="comment">// 释放申请的内存</span></span><br><span class="line">    <span class="keyword">if</span> (DomainSid != <span class="literal">NULL</span>) HeapFree(GetProcessHeap(), <span class="number">0</span>, DomainSid);</span><br><span class="line">    <span class="keyword">if</span> (DomainHandle != <span class="literal">NULL</span>) SamCloseHandle(DomainHandle);</span><br><span class="line">    <span class="keyword">if</span> (ServerHandle != <span class="literal">NULL</span>) SamCloseHandle(ServerHandle);</span><br><span class="line">    <span class="keyword">return</span> bRetrun;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>由于 <code>密码复杂度</code> 是按标志位进行检测，虽然一般情况下其他的标志位都为0，但是保险起见，<br>尽量先查询当前的信息，然后和标志位进行 <code>按位或</code> 的操作，再设置回去。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5/" rel="tag"># 密码策略</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/07/15/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%9C%A8%E6%89%B9%E5%A4%84%E7%90%86%E4%B8%AD%E8%8E%B7%E5%8F%96UAC%E7%AE%A1%E7%90%86%E5%91%98%E6%9D%83%E9%99%90-1/" rel="prev" title="在批处理中获取UAC管理员权限(1)">
+                  <i class="fa fa-chevron-left"></i> 在批处理中获取UAC管理员权限(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/07/18/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E4%BD%BF%E7%94%A8IPFilter%E5%AE%9E%E7%8E%B0%E6%95%B0%E6%8D%AE%E5%8C%85%E8%BF%87%E6%BB%A4-1/" rel="next" title="使用IPFilter实现数据包过滤(1)">
+                  使用IPFilter实现数据包过滤(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

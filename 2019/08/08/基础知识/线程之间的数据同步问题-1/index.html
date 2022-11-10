@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 我们为了提高程序运行效率，大多会采用多线程工作处理，最简单的例子就是 界面线程+工作线程 的模式。 不同的线程处理不同的功能，所以随之而来的就有多个线程访问同一段数据时的竞争问题。  数据传输方">
+<meta property="og:type" content="article">
+<meta property="og:title" content="线程之间的数据同步问题(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/08/08/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E7%BA%BF%E7%A8%8B%E4%B9%8B%E9%97%B4%E7%9A%84%E6%95%B0%E6%8D%AE%E5%90%8C%E6%AD%A5%E9%97%AE%E9%A2%98-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 我们为了提高程序运行效率，大多会采用多线程工作处理，最简单的例子就是 界面线程+工作线程 的模式。 不同的线程处理不同的功能，所以随之而来的就有多个线程访问同一段数据时的竞争问题。  数据传输方">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-08-08T05:57:38.000Z">
+<meta property="article:modified_time" content="2021-01-04T03:11:01.965Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="基础知识">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/08/08/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E7%BA%BF%E7%A8%8B%E4%B9%8B%E9%97%B4%E7%9A%84%E6%95%B0%E6%8D%AE%E5%90%8C%E6%AD%A5%E9%97%AE%E9%A2%98-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>线程之间的数据同步问题(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E4%BC%A0%E8%BE%93%E6%96%B9%E5%BC%8F"><span class="nav-number">2.</span> <span class="nav-text">数据传输方式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BA%BF%E7%A8%8B%E5%90%8C%E6%AD%A5%E6%96%B9%E5%BC%8F"><span class="nav-number">3.</span> <span class="nav-text">线程同步方式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BA%8B%E4%BB%B6-%E4%BF%A1%E5%8F%B7%E9%87%8F-%E4%BA%92%E6%96%A5%E4%BD%93"><span class="nav-number">4.</span> <span class="nav-text">事件&#x2F;信号量&#x2F;互斥体</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BA%8B%E4%BB%B6%E7%A4%BA%E4%BE%8B%E4%BB%A3%E7%A0%81"><span class="nav-number">5.</span> <span class="nav-text">事件示例代码</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%B4%E7%95%8C%E5%8C%BA-%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C"><span class="nav-number">6.</span> <span class="nav-text">临界区&#x2F;原子操作</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/08/08/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E7%BA%BF%E7%A8%8B%E4%B9%8B%E9%97%B4%E7%9A%84%E6%95%B0%E6%8D%AE%E5%90%8C%E6%AD%A5%E9%97%AE%E9%A2%98-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          线程之间的数据同步问题(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-08-08 13:57:38" itemprop="dateCreated datePublished" datetime="2019-08-08T13:57:38+08:00">2019-08-08</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-01-04 11:11:01" itemprop="dateModified" datetime="2021-01-04T11:11:01+08:00">2021-01-04</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" itemprop="url" rel="index"><span itemprop="name">基础知识</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>我们为了提高程序运行效率，大多会采用多线程工作处理，最简单的例子就是 <code>界面线程+工作线程</code> 的模式。<br>不同的线程处理不同的功能，所以随之而来的就有多个线程访问同一段数据时的竞争问题。</p>
+<h4 id="数据传输方式"><a href="#数据传输方式" class="headerlink" title="数据传输方式"></a>数据传输方式</h4><p>微软自身有一套消息处理机制，在一些逻辑简单的场合，我们可以直接使用这一机制，通过自定义消息来<br>发送数据，一般使用 <code>PostThreadMessage</code> 来向某个线程发送消息。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL WINAPI <span class="title">PostThreadMessage</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ DWORD  idThread,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ UINT   Msg,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ WPARAM wParam,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ LPARAM lParam</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>除此之外更多的是使用 <code>全局变量</code>，来存储多线程之间共有的数据。</p>
+<h4 id="线程同步方式"><a href="#线程同步方式" class="headerlink" title="线程同步方式"></a>线程同步方式</h4><p>多线程同时访问同一个全局变量时，假设这个全局变量是个结构体，当一个线程正在写数据时，另一个线程<br>正好也开始写数据，就会造成数据混乱。线程的同步就是让这种同时操作，限制为顺序操作，来保证每次的<br>操作都是完整的。</p>
+<p>一般常用的同步方法，有 <code>Event(事件)</code>  <code>Semaphore(信号量)</code> <code>Mutex(互斥体)</code> <code>CriticalSection(临界区)</code><br><code>Interlock(原子操作)</code> 等。其中 <code>事件</code> <code>信号量</code> <code>互斥体</code> 含有 <code>信号态</code> 与 <code>非信号态</code> 两种状态。我们使用等待函数<br><code>WaitForSingleObject</code> 和 <code>WaitForMultipleObjects</code> 来等待相关对象由 <code>非信号态</code> 切换到 <code>信号态</code>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD WINAPI <span class="title">WaitForSingleObject</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ HANDLE hHandle,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ DWORD  dwMilliseconds</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD WINAPI <span class="title">WaitForMultipleObjects</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_       DWORD  nCount,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ <span class="keyword">const</span> HANDLE *lpHandles,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_       BOOL   bWaitAll,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_       DWORD  dwMilliseconds</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>在Wait时，我们可以指定等待的时间，单位是毫秒，<code>INFINITE</code> 表示无限等待。如果是因为 <code>超时</code> 等待结束，<br>会返回一个 <code>WAIT_TIMEOUT</code> 返回值，正常的因为 <code>信号态</code> 等待结束，返回值为 <code>WAIT_OBJECT_0</code>。</p>
+<h4 id="事件-信号量-互斥体"><a href="#事件-信号量-互斥体" class="headerlink" title="事件/信号量/互斥体"></a>事件/信号量/互斥体</h4><p>当Wait的 <code>事件</code> 处于 <code>非信号态</code> 时，线程进入休眠状态，当 <code>事件</code> 变为 <code>信号态</code> 时，线程结束休眠继续执行。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">HANDLE WINAPI <span class="title">CreateEvent</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPSECURITY_ATTRIBUTES lpEventAttributes,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     BOOL                  bManualReset, <span class="comment">// 自动 or 手动</span></span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     BOOL                  bInitialState,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPCTSTR               lpName</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建事件</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL WINAPI <span class="title">SetEvent</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ HANDLE hEvent</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 设置为信号态</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL WINAPI <span class="title">ResetEvent</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ HANDLE hEvent</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 设置为非信号态</span></span><br></pre></td></tr></table></figure>
+
+<p>在创建 <code>事件</code> 时，还可以指定 <code>自动恢复到非信号态</code> 还是 <code>手动恢复到非信号态</code>。如果指定为自动，在Wait结束后，<br>会自动把当前的 <code>信号态</code> 设置为 <code>非信号态</code>，而手动就是需要我们自己来改变状态。</p>
+<p>信号量的原理与事件相同，只不过信号量只有自动模式，并且可以指定 <code>Wait次数</code> 后才会切换到 <code>非信号态</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">HANDLE WINAPI <span class="title">CreateSemaphore</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPSECURITY_ATTRIBUTES lpSemaphoreAttributes,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     LONG                  lInitialCount,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     LONG                  lMaximumCount,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPCTSTR               lpName</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建信号量</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL WINAPI <span class="title">ReleaseSemaphore</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      HANDLE hSemaphore,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      LONG   lReleaseCount,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_opt_ LPLONG lpPreviousCount</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 增加Wait次数</span></span><br></pre></td></tr></table></figure>
+
+<p>如果我们同步操作的代码逻辑特别简短，<code>事件</code> 和 <code>信号量</code> 频繁的 <code>休眠线程</code> 和 <code>唤醒线程</code> 会浪费大量的时间，<br>这个时候我们可以使用 <code>互斥体</code> 来进行同步。<code>互斥体</code> 在Wait时不会休眠线程，而是会不停的轮询当前状态。<br><code>互斥体</code> 只有手动模式，在Wait过后需要主动释放。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">HANDLE WINAPI <span class="title">CreateMutex</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPSECURITY_ATTRIBUTES lpMutexAttributes,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     BOOL                  bInitialOwner,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPCTSTR               lpName</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建互斥体</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL WINAPI <span class="title">ReleaseMutex</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ HANDLE hMutex</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 释放互斥体</span></span><br></pre></td></tr></table></figure>
+
+<p>在创建 <code>事件</code> <code>信号量</code> <code>互斥体</code> 时，有一个参数能够指定对象名称。如果是在进程内部使用，可以不指定名称，<br>也就是 <code>匿名对象</code> ，我们直接使用句柄进行操作。如果指定名称创建 <code>命名对象</code> ，就可以在不同的进程间使用，<br>在不同进程中打开或创建的同名事件，都是同一个事件。</p>
+<h4 id="事件示例代码"><a href="#事件示例代码" class="headerlink" title="事件示例代码"></a>事件示例代码</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> _tmain(<span class="keyword">int</span> argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 创建手动控制的事件</span></span><br><span class="line">    HANDLE hEvent = CreateEvent(<span class="literal">NULL</span>, FALSE, FALSE, <span class="string">&quot;Global\\TestEvent&quot;</span>);</span><br><span class="line">    <span class="keyword">if</span> (hEvent == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 设置为信号态</span></span><br><span class="line">    SetEvent(hEvent);</span><br><span class="line">    <span class="comment">// 等待事件为信号态</span></span><br><span class="line">    WaitForSingleObject(hEvent, INFINITE);</span><br><span class="line">    <span class="comment">// 设置为非信号态</span></span><br><span class="line">    ResetEvent(hEvent);</span><br><span class="line">    <span class="comment">// 关闭事件句柄</span></span><br><span class="line">    CloseHandle(hEvent);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="临界区-原子操作"><a href="#临界区-原子操作" class="headerlink" title="临界区/原子操作"></a>临界区/原子操作</h4><p><code>临界区</code> 和 <code>原子操作</code> 的原理，跟 <code>互斥体</code> 类似，只不过不需要使用Wait函数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> WINAPI <span class="title">InitializeCriticalSection</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ LPCRITICAL_SECTION lpCriticalSection</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 初始化临界区</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> WINAPI <span class="title">DeleteCriticalSection</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LPCRITICAL_SECTION lpCriticalSection</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 删除临界区</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> WINAPI <span class="title">EnterCriticalSection</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LPCRITICAL_SECTION lpCriticalSection</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 进入临界区</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> WINAPI <span class="title">LeaveCriticalSection</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LPCRITICAL_SECTION lpCriticalSection</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 离开临界区</span></span><br></pre></td></tr></table></figure>
+
+<p><code>临界区</code> 的使用示例代码</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 全局变量</span></span><br><span class="line">CRITICAL_SECTION CriticalSection = &#123; <span class="number">0</span> &#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">int</span> _tmain(<span class="keyword">int</span> argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 初始化临界区，只需要初始化一次</span></span><br><span class="line">    InitializeCriticalSection(&amp;CriticalSection);</span><br><span class="line">    <span class="comment">// …… 其他代码 ……</span></span><br><span class="line">    <span class="comment">// 程序退出时，删除临界区</span></span><br><span class="line">    DeleteCriticalSection(&amp;CriticalSection);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">DWORD WINAPI <span class="title">ThreadProc</span><span class="params">(LPVOID lpParameter)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// …… 其他代码 ……</span></span><br><span class="line">    <span class="comment">// 进入临界区</span></span><br><span class="line">    EnterCriticalSection(&amp;CriticalSection);</span><br><span class="line">    <span class="comment">// …… 需要同步操作的代码 ……</span></span><br><span class="line">    <span class="comment">// 离开临界区</span></span><br><span class="line">    LeaveCriticalSection(&amp;CriticalSection);</span><br><span class="line">    <span class="comment">// …… 其他代码 ……</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>原子操作</code> 是操作系统提供的，只针对基本类型数据进行操作，比如针对LONG型数据执行算术运算</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">LONG __cdecl <span class="title">InterlockedAdd</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LONG <span class="keyword">volatile</span> *Addend,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    LONG          Value</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 原子操作加法</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">LONG __cdecl <span class="title">InterlockedIncrement</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LONG <span class="keyword">volatile</span> *Addend</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 原子操作加1</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">LONG __cdecl <span class="title">InterlockedDecrement</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LONG <span class="keyword">volatile</span> *Addend</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 原子操作减1</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">LONG __cdecl <span class="title">InterlockedExchange</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LONG <span class="keyword">volatile</span> *Target,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    LONG          Value</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 原子操作数据交换</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PVOID __cdecl <span class="title">InterlockedExchangePointer</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ PVOID <span class="keyword">volatile</span> *Target,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    PVOID          Value</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 原子操作地址交换</span></span><br></pre></td></tr></table></figure>
+
+<p>还有大量的其他原子操作函数，这里只列出了常见的几种，其他请自行查阅微软的 <code>MSDN</code> 资料</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" rel="tag"># 基础知识</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/08/05/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/%E5%87%BD%E6%95%B0%E7%9A%84%E8%B0%83%E7%94%A8%E7%BA%A6%E5%AE%9A%E4%BB%8B%E7%BB%8D-1/" rel="prev" title="函数的调用约定介绍(1)">
+                  <i class="fa fa-chevron-left"></i> 函数的调用约定介绍(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/08/13/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E6%8A%93%E5%8F%96%E7%BD%91%E7%BB%9C%E6%95%B0%E6%8D%AE%E5%8C%85%E7%9A%84%E5%AE%9E%E7%8E%B0-1/" rel="next" title="应用层抓取网络数据包的实现(1)">
+                  应用层抓取网络数据包的实现(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

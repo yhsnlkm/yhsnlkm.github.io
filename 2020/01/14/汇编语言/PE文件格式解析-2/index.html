@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="前言 在PE文件结构中，数据目录表对应的信息很重要，这里对其中几个常用的进行介绍。  导出表 导出表是PE文件为其他应用程序提供API的一种信息导出方式，其结构体如下  1 2 3 4 5 6 7 8">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PE文件格式解析(2)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="前言 在PE文件结构中，数据目录表对应的信息很重要，这里对其中几个常用的进行介绍。  导出表 导出表是PE文件为其他应用程序提供API的一种信息导出方式，其结构体如下  1 2 3 4 5 6 7 8">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/01.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/02.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/03.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/04.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/05.png">
+<meta property="article:published_time" content="2020-01-14T09:58:53.000Z">
+<meta property="article:modified_time" content="2021-03-12T07:54:15.376Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="汇编语言">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/01.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>PE文件格式解析(2) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AF%BC%E5%87%BA%E8%A1%A8"><span class="nav-number">2.</span> <span class="nav-text">导出表</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AF%BC%E5%85%A5%E8%A1%A8"><span class="nav-number">3.</span> <span class="nav-text">导入表</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          PE文件格式解析(2)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2020-01-14 17:58:53" itemprop="dateCreated datePublished" datetime="2020-01-14T17:58:53+08:00">2020-01-14</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-03-12 15:54:15" itemprop="dateModified" datetime="2021-03-12T15:54:15+08:00">2021-03-12</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/" itemprop="url" rel="index"><span itemprop="name">汇编语言</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在PE文件结构中，数据目录表对应的信息很重要，这里对其中几个常用的进行介绍。</p>
+<h4 id="导出表"><a href="#导出表" class="headerlink" title="导出表"></a>导出表</h4><p>导出表是PE文件为其他应用程序提供API的一种信息导出方式，其结构体如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_EXPORT_DIRECTORY</span> &#123;</span></span><br><span class="line">    DWORD Characteristics;       <span class="comment">// 保留,恒为0x00000000</span></span><br><span class="line">    DWORD TimeDateStamp;         <span class="comment">// 时间戳</span></span><br><span class="line">    WORD  MajorVersion;          <span class="comment">// 主版本号，一般不赋值</span></span><br><span class="line">    WORD  MinorVersion;          <span class="comment">// 子版本号，一般不赋值</span></span><br><span class="line">    DWORD Name;                  <span class="comment">// 模块名称地址</span></span><br><span class="line">    DWORD Base;                  <span class="comment">// 索引基数</span></span><br><span class="line">    DWORD NumberOfFunctions;     <span class="comment">// 导出地址表中的成员个数</span></span><br><span class="line">    DWORD NumberOfNames;         <span class="comment">// 导出名称表中的成员个数</span></span><br><span class="line">    DWORD AddressOfFunctions;    <span class="comment">// 导出地址表(EAT)</span></span><br><span class="line">    DWORD AddressOfNames;        <span class="comment">// 导出名称表(ENT)</span></span><br><span class="line">    DWORD AddressOfNameOrdinals; <span class="comment">// 指向导出序列号数组</span></span><br><span class="line">&#125; IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;</span><br></pre></td></tr></table></figure>
+
+<p>从逻辑上讲，导出表由3部分构成，分别是地址表、名称表、序号表。地址表存储的是所有导出内容的<br>地址信息，名称表存储的是所有导出的名称信息，而序号表与名称表一一对应，表明该名称在地址表中<br>的索引位置。其中对应关系如下图所示</p>
+<p><img src="01.png" alt="对应关系"></p>
+<p>我们自己创建一个DLL程序，并使用 <code>.def</code> 文件来定义导出信息：<br>注意：第一个语句可以使用 <code>LIBRARY</code> 定义DLL的名称，然后可以使用 <code>EXPORTS</code> 来定义导出的函数名，<br>在函数名的后边可以加上 <code>@</code> 来指定序号值，序号范围是 <code>从1到N</code>，如果不想导出函数名，还可以在序号<br>后边加上 <code>NONAME</code> 语句，如下代码所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">LIBRARY MyDll</span><br><span class="line">EXPORTS</span><br><span class="line">  Plus  @<span class="number">3</span></span><br><span class="line">  Sub   @<span class="number">4</span> NONAME</span><br><span class="line">  Div   @<span class="number">6</span> NONAME</span><br><span class="line">  Mul   @<span class="number">7</span></span><br></pre></td></tr></table></figure>
+
+<p>查看实际生成的文件内容如下所示</p>
+<p><img src="02.png" alt="实际内容"></p>
+<p>其中绿色划线的信息为 <code>Base(3)</code> <code>NumberOfFunctions(5)</code> <code>NumberOfNames(2)</code>，相关信息如下所示</p>
+<p><img src="03.png" alt="数据关系"></p>
+<p>由于序号表只有 <code>0x0000</code> 和 <code>0x0004</code>，中间的序号就是虚序号。同时由于我们只定义了4个函数，在<br>地址表中就会存在一个内容为 <code>0x00000000</code> 的用来占位的成员。</p>
+<p>在加载到内存后，其调用序号还需要加上索引基址 <code>Base</code> 信息，即 <code>Plus</code> 的调用序号是 <code>3 + 0x0000 = 3</code>，<br><code>Mul</code> 的调用序号是 <code>3 + 0x0004 = 7</code>，下图为使用 <code>LordPE</code> 工具查看的信息。</p>
+<p>如果我们只通过 <code>名称表</code> 来获取函数地址，就不需要加上这个基址，直接使用对应的偏移就行。</p>
+<p><img src="04.png" alt="导出信息"></p>
+<h4 id="导入表"><a href="#导入表" class="headerlink" title="导入表"></a>导入表</h4><p>导入表是PE文件从其他第三方程序中导入API供自己使用的机制，其结构体如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_IMPORT_DESCRIPTOR</span> &#123;</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        DWORD Characteristics;</span><br><span class="line">        DWORD OriginalFirstThunk; <span class="comment">// 名称表(INT)的RVA</span></span><br><span class="line">    &#125;;</span><br><span class="line">    DWORD TimeDateStamp;          <span class="comment">// 时间戳</span></span><br><span class="line">    DWORD ForwarderChain;         <span class="comment">// 转发链，如果不转发则为0</span></span><br><span class="line">    DWORD Name;                   <span class="comment">// 导入映像名地址</span></span><br><span class="line">    DWORD FirstThunk;             <span class="comment">// 地址表(IAT)的RVA</span></span><br><span class="line">&#125; IMAGE_IMPORT_DESCRIPTOR, *PIMAGE_IMPORT_DESCRIPTOR;</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>OriginalFirstThunk</code> 和 <code>FirstThunk</code> 指向的是一个结构体数组，结尾是整体为0x0的结构体，<br>这个结构体在32位和64位中不同，是一个联合体信息，定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_THUNK_DATA32</span> &#123;</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        DWORD ForwarderString; <span class="comment">// 转发字符串的RVA</span></span><br><span class="line">        DWORD Function;        <span class="comment">// 被导入函数的地址</span></span><br><span class="line">        DWORD Ordinal;         <span class="comment">// 被导入函数的序号</span></span><br><span class="line">        DWORD AddressOfData;   <span class="comment">// 被导入函数名称的RVA</span></span><br><span class="line">    &#125; u1;</span><br><span class="line">&#125; IMAGE_THUNK_DATA32, *PIMAGE_THUNK_DATA32; <span class="comment">// 32位</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_THUNK_DATA64</span> &#123;</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        ULONGLONG ForwarderString; <span class="comment">// 转发字符串的RVA</span></span><br><span class="line">        ULONGLONG Function;        <span class="comment">// 被导入函数的地址</span></span><br><span class="line">        ULONGLONG Ordinal;         <span class="comment">// 被导入函数的序号</span></span><br><span class="line">        ULONGLONG AddressOfData;   <span class="comment">// 被导入函数名称的RVA</span></span><br><span class="line">    &#125; u1;</span><br><span class="line">&#125; IMAGE_THUNK_DATA64, *PIMAGE_THUNK_DATA64; <span class="comment">// 64位</span></span><br></pre></td></tr></table></figure>
+
+<p><code>ForwarderString</code>：当导入表的 <code>ForwarderChain</code> 不为0时，此值有效，并指向包含有转发函数与导出<br>这个函数的映像文件名的字符串RVA。<br><code>Function</code>：导入表导入函数的实际内存地址，此字段仅在此映像被加载，且此结构为IAT的前提下有效。<br><code>Ordinal</code>：导入表导入函数的导出序号，当 <code>IMAGE_THUNK_DATA</code> 的最高位为1时，此值有效。<br><code>AddressOfData</code>：指向 <code>IMAGE_IMPORT_BY_NAME</code> 结构，当以上3个值都未生效时，此值有效。</p>
+<p>这里就产生一个疑问 <code>Function</code>  和 <code>AddressOfData</code> 如何进行区分：在PE文件被系统地加载之前，输入表<br>的 <code>INT</code> 与 <code>IAT</code> 都是使用 <code>AddressOfData</code> 字段指向一个 <code>IMAGE_IMPORT_BY_NAME</code> 结构的，但当我们的PE<br>文件被加载时，操作系统首先会逐个遍历 <code>INT</code> 中的内容，并取出已导入函数的内存地址，然后将这些动态<br>获取的地址逐一填入对应的 <code>IAT</code> 中，此时操作系统使用的就是 <code>Function</code> 这个成员。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_IMPORT_BY_NAME</span> &#123;</span></span><br><span class="line">    WORD Hint;    <span class="comment">// 需导入的函数序号</span></span><br><span class="line">    CHAR Name[<span class="number">1</span>]; <span class="comment">// 需导入的函数名称(不定长且以\0结尾)</span></span><br><span class="line">&#125; IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;</span><br></pre></td></tr></table></figure>
+
+<p>如下为导入表内容的关系图</p>
+<p><img src="05.png" alt="结构关系"></p>
+<p>注意：导入表的序号并不是不可靠的，因为编译器在生成程序时，使用的序号是SDK库文件 <code>.lib</code> 中的，<br>但是实际运行时对应的 <code>.dll</code> 有可能是不同操作系统的。比如系统中的 Kernel32.dll 模块。</p>
+<p>为了避免因此发生加载错误，最可靠的处理方法是首先使用本程序导入的序号，在导出此函数的DLL中<br>查找与此序号所对应的函数名，如果目标DLL中与此序号对应的API函数名与本程序中此序号对应的函数名<br>一致，则直接调用，否则使用函数名来搜索比对获取API地址。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/" rel="tag"># 汇编语言</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/" rel="prev" title="使用MiniFilter与应用层通讯(1)">
+                  <i class="fa fa-chevron-left"></i> 使用MiniFilter与应用层通讯(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/" rel="next" title="PE文件格式解析(3)">
+                  PE文件格式解析(3) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="前言 在网络操作中，也可以使用 OVERLAPPED 和 APC 的方式。一种是直接把 socket 当做文件对象来进行 读写操作。另一种是通过微软提供的 WSAxxx 系列函数来进行读写。我们这里先">
+<meta property="og:type" content="article">
+<meta property="og:title" content="重叠IO模型和完成端口(2)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2020/01/19/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E9%87%8D%E5%8F%A0IO%E6%A8%A1%E5%9E%8B%E5%92%8C%E5%AE%8C%E6%88%90%E7%AB%AF%E5%8F%A3-2/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="前言 在网络操作中，也可以使用 OVERLAPPED 和 APC 的方式。一种是直接把 socket 当做文件对象来进行 读写操作。另一种是通过微软提供的 WSAxxx 系列函数来进行读写。我们这里先">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2020-01-19T08:08:13.000Z">
+<meta property="article:modified_time" content="2021-01-04T03:17:10.521Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="网络相关">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2020/01/19/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E9%87%8D%E5%8F%A0IO%E6%A8%A1%E5%9E%8B%E5%92%8C%E5%AE%8C%E6%88%90%E7%AB%AF%E5%8F%A3-2/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>重叠IO模型和完成端口(2) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E6%93%8D%E4%BD%9C-SELECT"><span class="nav-number">2.</span> <span class="nav-text">网络操作(SELECT)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BD%91%E7%BB%9C%E6%93%8D%E4%BD%9C-OVERLAPPED-APC"><span class="nav-number">3.</span> <span class="nav-text">网络操作(OVERLAPPED)(APC)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%8C%E6%88%90%E7%AB%AF%E5%8F%A3-IOCP"><span class="nav-number">4.</span> <span class="nav-text">完成端口(IOCP)</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2020/01/19/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E9%87%8D%E5%8F%A0IO%E6%A8%A1%E5%9E%8B%E5%92%8C%E5%AE%8C%E6%88%90%E7%AB%AF%E5%8F%A3-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          重叠IO模型和完成端口(2)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2020-01-19 16:08:13" itemprop="dateCreated datePublished" datetime="2020-01-19T16:08:13+08:00">2020-01-19</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-01-04 11:17:10" itemprop="dateModified" datetime="2021-01-04T11:17:10+08:00">2021-01-04</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/" itemprop="url" rel="index"><span itemprop="name">网络相关</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在网络操作中，也可以使用 <code>OVERLAPPED</code> 和 <code>APC</code> 的方式。一种是直接把 <code>socket</code> 当做文件对象来进行<br>读写操作。另一种是通过微软提供的 <code>WSAxxx</code> 系列函数来进行读写。我们这里先介绍 <code>SELECT模型</code>。</p>
+<h4 id="网络操作-SELECT"><a href="#网络操作-SELECT" class="headerlink" title="网络操作(SELECT)"></a>网络操作(SELECT)</h4><p>在WINDOWS中使用 <code>SELECT模型</code> 对应函数如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">select</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    <span class="keyword">int</span>                  nfds,       <span class="comment">// 忽略，兼容UNIX用</span></span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ fd_set               *readfds,   <span class="comment">// 检查可读性</span></span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ fd_set               *writefds,  <span class="comment">// 检查可写性</span></span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ fd_set               *exceptfds, <span class="comment">// 检查例外数据</span></span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    <span class="keyword">const</span> struct timeval *timeout    <span class="comment">// 等待的超时时间</span></span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>所有操作的检查，都是通过 <code>fd_set</code> 结构体来处理，如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">fd_set</span> &#123;</span></span><br><span class="line">  u_int  fd_count;</span><br><span class="line">  SOCKET fd_array[FD_SETSIZE];</span><br><span class="line">&#125; fd_set;</span><br></pre></td></tr></table></figure>
+
+<p>结构体中的 <code>FD_SETSIZE</code> 值为 <code>64</code>，表示默认最大处理 <code>64</code> 个套接字，这个数值我们可以自行修改，<br>SDK提供了几个宏定义，来对 <code>fd_set</code> 结构体进行操作，如下所示</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">FD_CLR(s, *set)：从set中删除套接字s</span><br><span class="line">FD_ISSET(s, *set)：检查s是否是set集合的一名成员；如果是，则返回TRUE</span><br><span class="line">FD_SET(s, *set)：将套接字s加入集合set</span><br><span class="line">FD_ZERO(*set)：将set初始化成空集合</span><br></pre></td></tr></table></figure>
+
+<p>select函数参数中的 <code>readfds</code> <code>writefds</code> <code>exceptfds</code> 分别指向 <code>可读</code> <code>可写 异常</code> 对应的描述符集合。<br>这3个参数都是传入传出型参数，在调用select之前，我们把套接字通过 <code>FD_SET</code> 分别添加进 <code>readfds</code><br><code>writefds</code> <code>exceptfds</code> 描述符集合中，select会监听这些套接字。当有就绪的套接字时，select会修改<br>对应套接字的信息，而我们在下次使用时，需要重新再添加一遍原始的套接字，所以这种方法效率<br>相对较低，如下为一个简单的示例</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">SelectTest</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 初始化</span></span><br><span class="line">    WSADATA wsaData;</span><br><span class="line">    WSAStartup(MAKEWORD(<span class="number">2</span>, <span class="number">2</span>), &amp;wsaData);</span><br><span class="line">    <span class="comment">// 创建服务端</span></span><br><span class="line">    SOCKET socketSrv = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);</span><br><span class="line">    <span class="keyword">if</span> (socketSrv == INVALID_SOCKET)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    SOCKADDR_IN addrSrv;</span><br><span class="line">    addrSrv.sin_family = AF_INET;</span><br><span class="line">    addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);</span><br><span class="line">    addrSrv.sin_port = htons(<span class="number">45000</span>);</span><br><span class="line">    <span class="comment">// 设为非阻塞（有疑问，待验证）</span></span><br><span class="line">    u_long opt = <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">int</span> ret = ioctlsocket(socketSrv, FIONBIO, &amp;opt);</span><br><span class="line">    <span class="keyword">if</span> (ret != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(socketSrv);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 绑定</span></span><br><span class="line">    ret = bind(socketSrv, (SOCKADDR*)&amp;addrSrv, <span class="keyword">sizeof</span>(SOCKADDR));</span><br><span class="line">    <span class="keyword">if</span> (ret != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(socketSrv);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 监听</span></span><br><span class="line">    ret = listen(socketSrv, SOMAXCONN);</span><br><span class="line">    <span class="keyword">if</span> (ret != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(socketSrv);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 把服务端装入合集</span></span><br><span class="line">    fd_set allSockets;</span><br><span class="line">    FD_ZERO(&amp;allSockets);</span><br><span class="line">    FD_SET(socketSrv, &amp;allSockets);</span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 每次都要重新赋值</span></span><br><span class="line">        fd_set readSockets = allSockets;</span><br><span class="line">        fd_set writeSockets = allSockets;</span><br><span class="line">        fd_set errorSockets = allSockets;</span><br><span class="line">        <span class="comment">// 开始等待相关操作</span></span><br><span class="line">        ret = select(<span class="number">0</span>, &amp;readSockets, &amp;writeSockets, &amp;errorSockets, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (ret &lt;= <span class="number">0</span>) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">// 检查是否有错误</span></span><br><span class="line">        <span class="keyword">for</span> (u_int i = <span class="number">0</span>; i &lt; errorSockets.fd_count; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            FD_CLR(errorSockets.fd_array[i], &amp;allSockets);</span><br><span class="line">            closesocket(errorSockets.fd_array[i]);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检查是否有可写</span></span><br><span class="line">        <span class="keyword">for</span> (u_int i = <span class="number">0</span>; i &lt; writeSockets.fd_count; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            ret = send(writeSockets.fd_array[i], <span class="string">&quot;ok&quot;</span>, <span class="number">2</span>, <span class="number">0</span>);</span><br><span class="line">            <span class="keyword">if</span> (ret &lt;= <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                FD_CLR(errorSockets.fd_array[i], &amp;allSockets);</span><br><span class="line">                closesocket(errorSockets.fd_array[i]);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">            &#123;</span><br><span class="line">                <span class="comment">// do something ...</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检查是否有可读</span></span><br><span class="line">        <span class="keyword">for</span> (u_int i = <span class="number">0</span>; i &lt; readSockets.fd_count; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">if</span> (readSockets.fd_array[i] == socketSrv)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="comment">// 接受连接并放入合集(检查是否超出上限)</span></span><br><span class="line">                <span class="keyword">if</span> (allSockets.fd_count &gt;= FD_SETSIZE) <span class="keyword">continue</span>;</span><br><span class="line">                SOCKET socketCli = accept(socketSrv, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br><span class="line">                <span class="keyword">if</span> (socketCli == INVALID_SOCKET) <span class="keyword">continue</span>;</span><br><span class="line">                FD_SET(socketCli, &amp;allSockets);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">            &#123;</span><br><span class="line">                <span class="comment">// 假定数据不超过缓冲区</span></span><br><span class="line">                <span class="keyword">char</span> rcvBuf[<span class="number">1024</span>] = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">                ret = recv(readSockets.fd_array[i], rcvBuf, <span class="number">1024</span>, <span class="number">0</span>);</span><br><span class="line">                <span class="keyword">if</span> (ret &lt;= <span class="number">0</span>)</span><br><span class="line">                &#123;</span><br><span class="line">                    FD_CLR(errorSockets.fd_array[i], &amp;allSockets);</span><br><span class="line">                    closesocket(errorSockets.fd_array[i]);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">else</span></span><br><span class="line">                &#123;</span><br><span class="line">                    <span class="comment">// do something ...</span></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    closesocket(socketSrv);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="网络操作-OVERLAPPED-APC"><a href="#网络操作-OVERLAPPED-APC" class="headerlink" title="网络操作(OVERLAPPED)(APC)"></a>网络操作(OVERLAPPED)(APC)</h4><p>微软专门提供了一组 <code>WSAxxx</code> 网络异步操作函数，包括 <code>WSASend</code> <code>WSASendTo</code> <code>WSARecv</code> <code>WSARecvFrom</code> 等</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">WSARecv</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    SOCKET                             s,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LPWSABUF                           lpBuffers,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    DWORD                              dwBufferCount,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_   LPDWORD                            lpNumberOfBytesRecvd,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_ LPDWORD                            lpFlags,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    LPWSAOVERLAPPED                    lpOverlapped,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_    LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>使用 <code>WSAOVERLAPPED</code> 结构体，并搭配 <code>WSAEVENT</code> 和 <code>WSAWaitForMultipleEvents</code> 来实现异步处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">WSAOVERLAPPED</span> &#123;</span></span><br><span class="line">  ULONG_PTR Internal;</span><br><span class="line">  ULONG_PTR InternalHigh;</span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">      DWORD Offset;</span><br><span class="line">      DWORD OffsetHigh;</span><br><span class="line">    &#125;;</span><br><span class="line">    PVOID   Pointer;</span><br><span class="line">  &#125;;</span><br><span class="line">  HANDLE    hEvent;</span><br><span class="line">&#125; WSAOVERLAPPED, *LPWSAOVERLAPPED;</span><br></pre></td></tr></table></figure>
+
+<p>完成函数 <code>WSAOVERLAPPED_COMPLETION_ROUTINE</code> 定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID CALLBACK <span class="title">WSAOVERLAPPED_COMPLETION_ROUTINE</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    _In_ DWORD           dwError,</span></span></span><br><span class="line"><span class="function"><span class="params">    _In_ DWORD           cbTransferred,</span></span></span><br><span class="line"><span class="function"><span class="params">    _In_ LPWSAOVERLAPPED lpOverlapped,</span></span></span><br><span class="line"><span class="function"><span class="params">    _In_ DWORD           dwFlags</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 完成函数</span></span><br></pre></td></tr></table></figure>
+
+<p>可以看到，WSA操作函数与文件操作函数结构基本一致，这里就不再提供示例代码，可以参考<br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/HPAHPA/p/7819498.html">https://www.cnblogs.com/HPAHPA/p/7819498.html</a> 写的文章。</p>
+<h4 id="完成端口-IOCP"><a href="#完成端口-IOCP" class="headerlink" title="完成端口(IOCP)"></a>完成端口(IOCP)</h4><p>前边所述的各种方法，都或多或少存在一些缺陷，那么有没有比较完美的方法呢，那就是使用完成端口。<br>完成端口维护一个任务队列，使用少量的线程来发起任务和处理任务，既可以避免频繁的切换大量线程<br>上下文造成的资源浪费，又不受必须在任务发起线程设置 <code>alertable</code> 状态的限制。</p>
+<p>创建完成端口的函数为 <code>CreateIoCompletionPort</code> 定义如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">HANDLE WINAPI <span class="title">CreateIoCompletionPort</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     HANDLE    FileHandle,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ HANDLE    ExistingCompletionPort,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     ULONG_PTR CompletionKey,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     DWORD     NumberOfConcurrentThreads <span class="comment">// 并发执行最大线程数，一般是CPU核心数*2</span></span></span></span><br><span class="line"><span class="function"><span class="params">                                               <span class="comment">// 设为0则表示与系统中的处理器数量一样多</span></span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>使用多线程时，还要注意全局数据读写竞争，以及数据分块读写后，如何顺序重组的问题，我们这里先<br>只用一个工作线程，避开这些问题，只关注完成端口的原理。获取CPU核心数的代码如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD <span class="title">GetCpuCoreCount</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    SYSTEM_INFO stInfo = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    GetSystemInfo(&amp;stInfo);</span><br><span class="line">    <span class="keyword">return</span> stInfo.dwNumberOfProcessors;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在创建套接字时，如果使用 <code>WSASocket</code> 函数就，必须加上 <code>WSA_FLAG_OVERLAPPED</code> 标志，如果使用 <code>socket</code><br>函数，会自动的附加这个参数，不需要再专门标出。使用方式如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, <span class="literal">NULL</span>, <span class="number">0</span>, WSA_FLAG_OVERLAPPED);</span><br><span class="line">socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); <span class="comment">// 自带WSA_FLAG_OVERLAPPED标志</span></span><br></pre></td></tr></table></figure>
+
+<p>接受连接请求有两个函数：分别是 <code>accept</code> 和 <code>AcceptEx</code>，在并发量比较小的时候，这两个函数效率没啥<br>区别，在并发量较大时，使用 <code>AcceptEx</code> 效率更高。需要注意的是 <code>AcceptEx</code> 是从 VISTA 才开始提供的，<br>如果要在 XP 系统下运行，就只能使用 <code>accept</code> 。我们先以 <code>accept</code> 为例</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;winsock2.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> comment(lib,<span class="meta-string">&quot;WS2_32.lib&quot;</span>)</span></span><br><span class="line"><span class="comment">// 结构体定义</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> WSABUF_LEN 4096</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IO_DATA</span> &#123;</span></span><br><span class="line">    OVERLAPPED Overlapped;</span><br><span class="line">    SOCKET socketCli; <span class="comment">// 客户端</span></span><br><span class="line">    WSABUF wsabuf; <span class="comment">// 缓冲区指针</span></span><br><span class="line">    <span class="keyword">char</span> opCode; <span class="comment">// 0读,1写</span></span><br><span class="line">    <span class="keyword">char</span> buf[WSABUF_LEN]; <span class="comment">// 缓冲区</span></span><br><span class="line">&#125; IO_DATA, *PIO_DATA;</span><br><span class="line"><span class="comment">// 全局变量</span></span><br><span class="line">HANDLE g_hCompPort = <span class="literal">NULL</span>;</span><br><span class="line">SOCKET g_socketSrv = INVALID_SOCKET;</span><br><span class="line"><span class="comment">// 完成端口测试函数</span></span><br><span class="line"><span class="function">BOOL <span class="title">IOCPTest</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 初始化</span></span><br><span class="line">    WSADATA wsaData;</span><br><span class="line">    WSAStartup(MAKEWORD(<span class="number">2</span>, <span class="number">2</span>), &amp;wsaData);</span><br><span class="line">    <span class="comment">// 创建SOCKET</span></span><br><span class="line">    g_socketSrv = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);</span><br><span class="line">    <span class="keyword">if</span> (INVALID_SOCKET == g_socketSrv)</span><br><span class="line">    &#123;</span><br><span class="line">        WSACleanup();</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 绑定IP地址</span></span><br><span class="line">    SOCKADDR_IN addrSrv;</span><br><span class="line">    addrSrv.sin_family = AF_INET;</span><br><span class="line">    addrSrv.sin_addr.S_un.S_addr = INADDR_ANY;</span><br><span class="line">    addrSrv.sin_port = htons(<span class="number">45000</span>);</span><br><span class="line">    <span class="keyword">int</span> nRet = bind(g_socketSrv, (SOCKADDR*)&amp;addrSrv, <span class="keyword">sizeof</span>(SOCKADDR));</span><br><span class="line">    <span class="keyword">if</span> (nRet != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(g_socketSrv);</span><br><span class="line">        WSACleanup();</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 监听服务端</span></span><br><span class="line">    nRet = listen(g_socketSrv, SOMAXCONN);</span><br><span class="line">    <span class="keyword">if</span> (nRet != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(g_socketSrv);</span><br><span class="line">        WSACleanup();</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 创建完成端口</span></span><br><span class="line">    g_hCompPort = CreateIoCompletionPort(</span><br><span class="line">        INVALID_HANDLE_VALUE, <span class="literal">NULL</span>, <span class="number">0</span>, <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">if</span> (<span class="literal">NULL</span> == g_hCompPort)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(g_socketSrv);</span><br><span class="line">        WSACleanup();</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 绑定服务端</span></span><br><span class="line">    HANDLE hTemp = CreateIoCompletionPort(</span><br><span class="line">        (HANDLE)g_socketSrv, g_hCompPort, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (<span class="literal">NULL</span> == hTemp)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(g_socketSrv);</span><br><span class="line">        WSACleanup();</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 创建工作线程</span></span><br><span class="line">    HANDLE hThread = CreateThread(</span><br><span class="line">        <span class="literal">NULL</span>, <span class="number">0</span>, WorkerThreadProc, <span class="literal">NULL</span>, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (<span class="literal">NULL</span> == hThread)</span><br><span class="line">    &#123;</span><br><span class="line">        closesocket(g_socketSrv);</span><br><span class="line">        WSACleanup();</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 循环接收连接请求</span></span><br><span class="line">    <span class="keyword">int</span> nErr = <span class="number">0</span>;</span><br><span class="line">    DWORD dwBytes = <span class="number">0</span>;</span><br><span class="line">    DWORD dwFlags = <span class="number">0</span>;</span><br><span class="line">    PIO_DATA pIoContext = <span class="literal">NULL</span>;</span><br><span class="line">    SOCKET socketCli = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">while</span> (g_socketSrv)</span><br><span class="line">    &#123;</span><br><span class="line">        socketCli = accept(g_socketSrv, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (INVALID_SOCKET  == socketCli) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">// 绑定客户端，并作为key参数</span></span><br><span class="line">        hTemp = CreateIoCompletionPort(</span><br><span class="line">            (HANDLE)socketCli, g_hCompPort, (ULONG_PTR)socketCli, <span class="number">1</span>);</span><br><span class="line">        <span class="keyword">if</span> (<span class="literal">NULL</span> == hTemp)</span><br><span class="line">        &#123;</span><br><span class="line">            closesocket(socketCli);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 初始化上下文</span></span><br><span class="line">        pIoContext = (PIO_DATA)<span class="built_in">malloc</span>(<span class="keyword">sizeof</span>(IO_DATA));</span><br><span class="line">        <span class="keyword">if</span> (pIoContext == <span class="literal">NULL</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            closesocket(socketCli);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="built_in">memset</span>(pIoContext, <span class="number">0</span>, <span class="keyword">sizeof</span>(IO_DATA));</span><br><span class="line">        pIoContext-&gt;opCode = <span class="number">0</span>; <span class="comment">// 读操作</span></span><br><span class="line">        pIoContext-&gt;wsabuf.buf = pIoContext-&gt;buf;</span><br><span class="line">        pIoContext-&gt;wsabuf.len = WSABUF_LEN;</span><br><span class="line">        pIoContext-&gt;socketCli = socketCli;</span><br><span class="line">        <span class="comment">// 发起接收请求</span></span><br><span class="line">        dwBytes = <span class="number">0</span>, dwFlags = <span class="number">0</span>;</span><br><span class="line">        nRet = WSARecv(socketCli, &amp;pIoContext-&gt;wsabuf, <span class="number">1</span>,</span><br><span class="line">                &amp;dwBytes, &amp;dwFlags, &amp;pIoContext-&gt;Overlapped, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (nRet != <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            nErr = WSAGetLastError();</span><br><span class="line">            <span class="keyword">if</span> (ERROR_IO_PENDING != nErr)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="built_in">free</span>(pIoContext);</span><br><span class="line">                closesocket(socketCli);</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    CloseHandle(g_hCompPort);</span><br><span class="line">    closesocket(g_socketSrv);</span><br><span class="line">    WSACleanup();</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 Worker 线程中，最关键的函数就是 <code>GetQueuedCompletionStatus</code>，功能就是等待任务队列中的任务<br>完成，并取出已经完成的任务信息，这个函数的定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL WINAPI <span class="title">GetQueuedCompletionStatus</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  HANDLE       CompletionPort,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ LPDWORD      lpNumberOfBytes,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ PULONG_PTR   lpCompletionKey,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ LPOVERLAPPED *lpOverlapped,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  DWORD        dwMilliseconds</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>如下为工作线程处理读写任务的示例代码</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD WINAPI <span class="title">WorkerThreadProc</span><span class="params">(LPVOID lpParam)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 循环获取任务队列</span></span><br><span class="line">    BOOL bRet = FALSE;</span><br><span class="line">    DWORD dwIoSize = <span class="number">0</span>;</span><br><span class="line">    SOCKET* lpCompKey = <span class="literal">NULL</span>;</span><br><span class="line">    LPOVERLAPPED lpOverlapped = <span class="literal">NULL</span>;</span><br><span class="line">    PIO_DATA pIoContext = <span class="literal">NULL</span>;</span><br><span class="line">    DWORD dwBytes = <span class="number">0</span>;</span><br><span class="line">    DWORD dwFlags = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">int</span> nRet = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">int</span> nErr = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        bRet = GetQueuedCompletionStatus(g_hCompPort, &amp;dwIoSize,</span><br><span class="line">            (PULONG_PTR)&amp;lpCompKey, (LPOVERLAPPED*)&amp;lpOverlapped, INFINITE);</span><br><span class="line">        <span class="keyword">if</span> (!bRet) <span class="keyword">break</span>; <span class="comment">// 出现错误</span></span><br><span class="line">        pIoContext = CONTAINING_RECORD(lpOverlapped, IO_DATA, Overlapped);</span><br><span class="line">        <span class="keyword">if</span> (dwIoSize == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 连接已关闭</span></span><br><span class="line">            closesocket(pIoContext-&gt;socketCli);</span><br><span class="line">            <span class="built_in">free</span>(pIoContext);</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 读操作完成</span></span><br><span class="line">        <span class="keyword">if</span> (pIoContext-&gt;opCode == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="built_in">printf</span>(<span class="string">&quot;recv:%s\n&quot;</span>, pIoContext-&gt;buf);</span><br><span class="line">            <span class="comment">// 发起发送请求</span></span><br><span class="line">            pIoContext-&gt;opCode = <span class="number">1</span>; <span class="comment">// 写操作</span></span><br><span class="line">            <span class="built_in">memset</span>(&amp;pIoContext-&gt;Overlapped, <span class="number">0</span>, <span class="keyword">sizeof</span>(OVERLAPPED));</span><br><span class="line">            strcpy_s(pIoContext-&gt;buf, WSABUF_LEN, <span class="string">&quot;200 OK&quot;</span>);</span><br><span class="line">            pIoContext-&gt;wsabuf.len = <span class="built_in">strlen</span>(pIoContext-&gt;buf);</span><br><span class="line">            dwBytes = <span class="number">0</span>, dwFlags = <span class="number">0</span>;</span><br><span class="line">            nRet = WSASend(pIoContext-&gt;socketCli, &amp;pIoContext-&gt;wsabuf, <span class="number">1</span>,</span><br><span class="line">                &amp;dwBytes, dwFlags, &amp;pIoContext-&gt;Overlapped, <span class="literal">NULL</span>);</span><br><span class="line">            <span class="keyword">if</span> (nRet != <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                nErr = WSAGetLastError();</span><br><span class="line">                <span class="keyword">if</span> (ERROR_IO_PENDING != nErr)</span><br><span class="line">                &#123;</span><br><span class="line">                    <span class="built_in">free</span>(pIoContext);</span><br><span class="line">                    closesocket(pIoContext-&gt;socketCli);</span><br><span class="line">                    <span class="keyword">continue</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 写操作完成</span></span><br><span class="line">        <span class="keyword">if</span> (pIoContext-&gt;opCode == <span class="number">1</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="built_in">printf</span>(<span class="string">&quot;send:%s\n&quot;</span>, pIoContext-&gt;buf);</span><br><span class="line">            <span class="comment">// 发起接收请求</span></span><br><span class="line">            pIoContext-&gt;opCode = <span class="number">0</span>; <span class="comment">// 读操作</span></span><br><span class="line">            <span class="built_in">memset</span>(&amp;pIoContext-&gt;Overlapped, <span class="number">0</span>, <span class="keyword">sizeof</span>(OVERLAPPED));</span><br><span class="line">            <span class="built_in">memset</span>(pIoContext-&gt;buf, <span class="number">0</span>, WSABUF_LEN);</span><br><span class="line">            pIoContext-&gt;wsabuf.len = WSABUF_LEN;</span><br><span class="line">            dwBytes = <span class="number">0</span>, dwFlags = <span class="number">0</span>;</span><br><span class="line">            nRet = WSARecv(pIoContext-&gt;socketCli, &amp;pIoContext-&gt;wsabuf, <span class="number">1</span>,</span><br><span class="line">                &amp;dwBytes, &amp;dwFlags, &amp;pIoContext-&gt;Overlapped, <span class="literal">NULL</span>);</span><br><span class="line">            <span class="keyword">if</span> (nRet != <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                nErr = WSAGetLastError();</span><br><span class="line">                <span class="keyword">if</span> (ERROR_IO_PENDING != nErr)</span><br><span class="line">                &#123;</span><br><span class="line">                    <span class="built_in">free</span>(pIoContext);</span><br><span class="line">                    closesocket(pIoContext-&gt;socketCli);</span><br><span class="line">                    <span class="keyword">continue</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意：这里只简单描述了完成端口工作的情况，实际在使用中还有大量的细节需要处理。<br>本文参考了 <a target="_blank" rel="noopener" href="https://blog.csdn.net/piggyxp/article/details/6922277">https://blog.csdn.net/piggyxp/article/details/6922277</a> 的博客文章</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/" rel="tag"># 网络相关</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2020/01/16/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E9%87%8D%E5%8F%A0IO%E6%A8%A1%E5%9E%8B%E5%92%8C%E5%AE%8C%E6%88%90%E7%AB%AF%E5%8F%A3-1/" rel="prev" title="重叠IO模型和完成端口(1)">
+                  <i class="fa fa-chevron-left"></i> 重叠IO模型和完成端口(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2020/09/25/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E5%9C%A8%E9%A9%B1%E5%8A%A8%E4%B8%AD%E5%AE%9E%E7%8E%B0WSK%E5%A5%97%E6%8E%A5%E5%AD%97%E5%AE%A2%E6%88%B7%E7%AB%AF-1/" rel="next" title="在驱动中实现WSK套接字客户端(1)">
+                  在驱动中实现WSK套接字客户端(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

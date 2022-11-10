@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 使用通知的方式只能在进程创建的时候注入，而我们想注入一个已经运行的进程时， 可以使用与应用层类似的，申请注入shellcode的内存，并创建线程来运行的方式。 这里参照 Blackbone 的部">
+<meta property="og:type" content="article">
+<meta property="og:title" content="在内核中创建线程注入DLL到R3进程(3)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2021/02/23/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E5%88%9B%E5%BB%BA%E7%BA%BF%E7%A8%8B%E6%B3%A8%E5%85%A5DLL%E5%88%B0R3%E8%BF%9B%E7%A8%8B-3/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 使用通知的方式只能在进程创建的时候注入，而我们想注入一个已经运行的进程时， 可以使用与应用层类似的，申请注入shellcode的内存，并创建线程来运行的方式。 这里参照 Blackbone 的部">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-02-23T09:54:31.000Z">
+<meta property="article:modified_time" content="2021-12-06T02:25:13.313Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="攻防保护">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2021/02/23/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E5%88%9B%E5%BB%BA%E7%BA%BF%E7%A8%8B%E6%B3%A8%E5%85%A5DLL%E5%88%B0R3%E8%BF%9B%E7%A8%8B-3/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>在内核中创建线程注入DLL到R3进程(3) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">工作原理</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2021/02/23/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E5%88%9B%E5%BB%BA%E7%BA%BF%E7%A8%8B%E6%B3%A8%E5%85%A5DLL%E5%88%B0R3%E8%BF%9B%E7%A8%8B-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          在内核中创建线程注入DLL到R3进程(3)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2021-02-23 17:54:31" itemprop="dateCreated datePublished" datetime="2021-02-23T17:54:31+08:00">2021-02-23</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-12-06 10:25:13" itemprop="dateModified" datetime="2021-12-06T10:25:13+08:00">2021-12-06</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" itemprop="url" rel="index"><span itemprop="name">攻防保护</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>使用通知的方式只能在进程创建的时候注入，而我们想注入一个已经运行的进程时，<br>可以使用与应用层类似的，申请注入shellcode的内存，并创建线程来运行的方式。<br>这里参照 <code>Blackbone</code> 的部分代码进行修改：<a target="_blank" rel="noopener" href="https://github.com/DarthTon/Blackbone">https://github.com/DarthTon/Blackbone</a></p>
+<h4 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h4><p>推荐的方法是获取SSDT表，找到 <code>NtCreateThreadEx</code> 函数来创建线程。在64位系统中获取SSDT的方法，<br>通常是搜索特征码，可以从 <code>Blackbone</code> 中查看，这里暂不讨论。另外 <code>RtlCreateUserThread</code> 函数也<br>可以创建线程，<strong>但好像还涉及 <code>PrevMode</code> 等信息，虽然测试未出现蓝屏现象，这种方法待议</strong>。<br>参见： <a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/previousmode">https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/previousmode</a></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">RtlCreateUserThread</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN HANDLE ProcessHandle, <span class="comment">// 目标进程</span></span></span></span><br><span class="line"><span class="function"><span class="params">    IN PSECURITY_DESCRIPTOR SecurityDescriptor OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN BOOLEAN CreateSuspended, <span class="comment">// 创建后是否挂起</span></span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG StackZeroBits OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN SIZE_T StackReserve OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN SIZE_T StackCommit OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID StartAddress, <span class="comment">// 线程函数地址</span></span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID Parameter OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PHANDLE ThreadHandle OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PCLIENT_ID ClientId OPTIONAL)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>这里使用 <code>在内核中获取进程的DLL和导出函数(1)</code> 文章中获取的 <code>WinExec</code> 导出函数为例</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 以调用WinExec函数为目标生成的ShellCode</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> AMD64</span></span><br><span class="line"><span class="keyword">unsigned</span> <span class="keyword">char</span> ShellCode[] = &#123;</span><br><span class="line">    <span class="number">0x48</span>, <span class="number">0x83</span>, <span class="number">0xEC</span>, <span class="number">0x28</span>,                                     <span class="comment">// sub rsp,28h</span></span><br><span class="line">    <span class="number">0x48</span>, <span class="number">0xBA</span>, <span class="number">0x05</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="comment">// mov rdx,5</span></span><br><span class="line">    <span class="number">0x48</span>, <span class="number">0xB9</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="comment">// mov rcx,xx</span></span><br><span class="line">    <span class="number">0x48</span>, <span class="number">0xB8</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="comment">// mov rax,xx</span></span><br><span class="line">    <span class="number">0xFF</span>, <span class="number">0xD0</span>,                                                 <span class="comment">// call rax</span></span><br><span class="line">    <span class="number">0x48</span>, <span class="number">0x31</span>, <span class="number">0xC0</span>,                                           <span class="comment">// xor rax,rax</span></span><br><span class="line">    <span class="number">0x48</span>, <span class="number">0x83</span>, <span class="number">0xC4</span>, <span class="number">0x28</span>,                                     <span class="comment">// add rsp,28h</span></span><br><span class="line">    <span class="number">0xC3</span> &#125;;                                                     <span class="comment">// ret</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line"><span class="keyword">unsigned</span> <span class="keyword">char</span> ShellCode[] = &#123;</span><br><span class="line">    <span class="number">0x68</span>, <span class="number">0x05</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="comment">// push 5</span></span><br><span class="line">    <span class="number">0x68</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="comment">// push xx</span></span><br><span class="line">    <span class="number">0xB8</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="number">0x00</span>, <span class="comment">// mov eax,xx</span></span><br><span class="line">    <span class="number">0xFF</span>, <span class="number">0xD0</span>,                   <span class="comment">// call eax</span></span><br><span class="line">    <span class="number">0x33</span>, <span class="number">0xC0</span>,                   <span class="comment">// xor eax,eax</span></span><br><span class="line">    <span class="number">0xC2</span>, <span class="number">0x04</span>, <span class="number">0x00</span> &#125;;           <span class="comment">// ret 4</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>调用的函数如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">InjectExplorerProcess</span><span class="params">(IN PCCHAR RunCmd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    HANDLE ProcessId = <span class="literal">NULL</span>;</span><br><span class="line">    PEPROCESS Process = <span class="literal">NULL</span>;</span><br><span class="line">    KAPC_STATE ApcState = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PEPROCESS CurrProcess = <span class="literal">NULL</span>;</span><br><span class="line">    PUCHAR Buffer = <span class="literal">NULL</span>;</span><br><span class="line">    SIZE_T BufferSize = <span class="number">0</span>;</span><br><span class="line">    SIZE_T RunCmdSize = <span class="number">0</span>;</span><br><span class="line">    HANDLE ThreadHandle = <span class="literal">NULL</span>;</span><br><span class="line">    LARGE_INTEGER Timeout = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PVOID Kernel32Addr = <span class="literal">NULL</span>;</span><br><span class="line">    PVOID WinExecAddr = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检查参数的有效性</span></span><br><span class="line">    <span class="keyword">if</span> (!RunCmd) <span class="keyword">return</span> STATUS_INVALID_PARAMETER;</span><br><span class="line">    RunCmdSize = <span class="built_in">strlen</span>(RunCmd) + <span class="number">1</span>;</span><br><span class="line">    <span class="comment">// 获取Explorer进程ID</span></span><br><span class="line">    Status = GetExplorerProcessId(&amp;ProcessId);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> Status;</span><br><span class="line">    <span class="comment">// 检查是否是当前进程</span></span><br><span class="line">    CurrProcess = PsGetCurrentProcess();</span><br><span class="line">    PsLookupProcessByProcessId(ProcessId, &amp;Process);</span><br><span class="line">    <span class="comment">// 检查是否是受保护的进程</span></span><br><span class="line">     <span class="keyword">if</span> (PsIsProtectedProcess(Process))</span><br><span class="line">        <span class="keyword">return</span> STATUS_ACCESS_DENIED;</span><br><span class="line">    <span class="comment">// 附加到目标进程中</span></span><br><span class="line">    <span class="keyword">if</span> (Process != CurrProcess)</span><br><span class="line">        KeStackAttachProcess(Process, &amp;ApcState);</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 获取Kernel32的地址</span></span><br><span class="line">        Kernel32Addr = GetKernel32Address(Process, FALSE);</span><br><span class="line">        <span class="keyword">if</span> (!Kernel32Addr) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 获取WinExec导出函数</span></span><br><span class="line">        WinExecAddr = GetExportFuncAddr(Kernel32Addr, <span class="string">&quot;WinExec&quot;</span>);</span><br><span class="line">        <span class="keyword">if</span> (!WinExecAddr) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 在目标进程中申请内存</span></span><br><span class="line">        BufferSize = <span class="keyword">sizeof</span>(ShellCode) + RunCmdSize;</span><br><span class="line">        Status = ZwAllocateVirtualMemory(</span><br><span class="line">            NtCurrentProcess(), (PVOID)&amp;Buffer, <span class="number">0</span>, &amp;BufferSize,</span><br><span class="line">            MEM_TOP_DOWN | MEM_COMMIT, PAGE_EXECUTE_READWRITE);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 拷贝ShellCode和RunCmd信息</span></span><br><span class="line">        RtlCopyMemory(Buffer, ShellCode, <span class="keyword">sizeof</span>(ShellCode));</span><br><span class="line">        RtlCopyMemory(Buffer + <span class="keyword">sizeof</span>(ShellCode), RunCmd, RunCmdSize);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> AMD64</span></span><br><span class="line">        *(PULONG_PTR)(Buffer + <span class="number">16</span>) = (ULONG_PTR)(Buffer + <span class="keyword">sizeof</span>(ShellCode));</span><br><span class="line">        *(PULONG_PTR)(Buffer + <span class="number">26</span>) = (ULONG_PTR)WinExecAddr;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">        *(PULONG_PTR)(Buffer + <span class="number">6</span>) = (ULONG_PTR)(Buffer + <span class="keyword">sizeof</span>(ShellCode));</span><br><span class="line">        *(PULONG_PTR)(Buffer + <span class="number">11</span>) = (ULONG_PTR)WinExecAddr;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">        <span class="comment">// 创建用户线程(推荐使用NtCreateThreadEx函数)</span></span><br><span class="line">        Status = RtlCreateUserThread(NtCurrentProcess(),</span><br><span class="line">            <span class="literal">NULL</span>, FALSE, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, Buffer, <span class="literal">NULL</span>, &amp;ThreadHandle, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (NT_SUCCESS(Status))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 等待线程结束</span></span><br><span class="line">            Timeout.QuadPart = <span class="number">-10L</span>L * <span class="number">1000</span> * <span class="number">1000</span> * <span class="number">3</span>; <span class="comment">// 3秒</span></span><br><span class="line">            ZwWaitForSingleObject(ThreadHandle, FALSE, &amp;Timeout);</span><br><span class="line">            ZwClose(ThreadHandle);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line">    <span class="comment">// 释放申请的空间</span></span><br><span class="line">    <span class="keyword">if</span> (Buffer)</span><br><span class="line">    &#123;</span><br><span class="line">        ZwFreeVirtualMemory(</span><br><span class="line">            NtCurrentProcess(), &amp;Buffer, &amp;BufferSize, MEM_RELEASE);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 分离目标进程</span></span><br><span class="line">    <span class="keyword">if</span> (Process != CurrProcess)</span><br><span class="line">        KeUnstackDetachProcess(&amp;ApcState);</span><br><span class="line">    <span class="keyword">return</span> Status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" rel="tag"># 攻防保护</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2021/01/20/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E6%A8%A1%E6%8B%9F%E6%89%8B%E5%8A%A8%E4%BB%8E%E6%A1%8C%E9%9D%A2%E8%BF%90%E8%A1%8C%E7%A8%8B%E5%BA%8F-1/" rel="prev" title="模拟手动从桌面运行程序(1)">
+                  <i class="fa fa-chevron-left"></i> 模拟手动从桌面运行程序(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2021/03/02/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E7%BB%95%E8%BF%87MiniFilter%E5%BC%BA%E5%88%A0%E6%96%87%E4%BB%B6-1/" rel="next" title="绕过MiniFilter强删文件(1)">
+                  绕过MiniFilter强删文件(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

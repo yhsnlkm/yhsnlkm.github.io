@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="WFP框架简介 在VISTA及以上的系统中，微软提供了对 TDI 封装的 WFP 框架，简化了处理逻辑。WFP 把数据包处理流程 划分了许多个层，在我们关注的 layer 上注册 callout 和">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用WFP实现数据包过滤(2)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/07/22/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E4%BD%BF%E7%94%A8WFP%E5%AE%9E%E7%8E%B0%E6%95%B0%E6%8D%AE%E5%8C%85%E8%BF%87%E6%BB%A4-2/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="WFP框架简介 在VISTA及以上的系统中，微软提供了对 TDI 封装的 WFP 框架，简化了处理逻辑。WFP 把数据包处理流程 划分了许多个层，在我们关注的 layer 上注册 callout 和">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-07-22T03:34:23.000Z">
+<meta property="article:modified_time" content="2021-01-04T03:17:10.495Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="网络相关">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/07/22/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E4%BD%BF%E7%94%A8WFP%E5%AE%9E%E7%8E%B0%E6%95%B0%E6%8D%AE%E5%8C%85%E8%BF%87%E6%BB%A4-2/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>使用WFP实现数据包过滤(2) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#WFP%E6%A1%86%E6%9E%B6%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">WFP框架简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%9B%B8%E5%85%B3%E5%87%BD%E6%95%B0%E5%92%8C%E7%BB%93%E6%9E%84%E4%BD%93"><span class="nav-number">2.</span> <span class="nav-text">相关函数和结构体</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%88%9D%E5%A7%8B%E5%8C%96%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F"><span class="nav-number">3.</span> <span class="nav-text">初始化全局变量</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B3%A8%E5%86%8C%E8%BF%87%E6%BB%A4%E5%BC%95%E6%93%8E"><span class="nav-number">4.</span> <span class="nav-text">注册过滤引擎</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%9B%B8%E5%85%B3%E5%9B%9E%E8%B0%83%E5%87%BD%E6%95%B0"><span class="nav-number">5.</span> <span class="nav-text">相关回调函数</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B5%81%E4%B8%8A%E4%B8%8B%E6%96%87%E9%93%BE%E8%A1%A8%E6%93%8D%E4%BD%9C"><span class="nav-number">6.</span> <span class="nav-text">流上下文链表操作</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%A9%B1%E5%8A%A8%E7%9A%84%E5%85%A5%E5%8F%A3%E5%87%BD%E6%95%B0"><span class="nav-number">7.</span> <span class="nav-text">驱动的入口函数</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/07/22/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E4%BD%BF%E7%94%A8WFP%E5%AE%9E%E7%8E%B0%E6%95%B0%E6%8D%AE%E5%8C%85%E8%BF%87%E6%BB%A4-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用WFP实现数据包过滤(2)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-07-22 11:34:23" itemprop="dateCreated datePublished" datetime="2019-07-22T11:34:23+08:00">2019-07-22</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-01-04 11:17:10" itemprop="dateModified" datetime="2021-01-04T11:17:10+08:00">2021-01-04</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/" itemprop="url" rel="index"><span itemprop="name">网络相关</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="WFP框架简介"><a href="#WFP框架简介" class="headerlink" title="WFP框架简介"></a>WFP框架简介</h4><p>在VISTA及以上的系统中，微软提供了对 <code>TDI</code> 封装的 <code>WFP</code> 框架，简化了处理逻辑。<code>WFP</code> 把数据包处理流程<br>划分了许多个层，在我们关注的 <code>layer</code> 上注册 <code>callout</code>  和  <code>filter</code> ，就可以针对相应的操作进行处理</p>
+<p>这些层的 <code>GUID</code> 可以在 <code>fwpmk.h</code> 头文件中找到定义，另外微软给出了数据传输时所流经的层：<br>(TCP Packet Flows) <a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/windows/win32/fwp/tcp-packet-flows">https://docs.microsoft.com/en-us/windows/win32/fwp/tcp-packet-flows</a><br>(UDP Packet Flows) <a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/windows/win32/fwp/udp-packet-flows">https://docs.microsoft.com/en-us/windows/win32/fwp/udp-packet-flows</a><br>所有非TCP的处理方式全归到UDP中，比如ICMP会依照UDP流程进行处理</p>
+<p>根据微软提供的数据传输流程，我们参考WDK例子中的 <code>src\network\trans\ddproxy</code> 项目来进行修改<br>(1) 首先要在ALE层获取建立连接的进程信息</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 完成连接的层(不含握手阶段)</span></span><br><span class="line">FWPM_LAYER_ALE_FLOW_ESTABLISHED_V4</span><br><span class="line"><span class="comment">// 发起连接或接受连接的层</span></span><br><span class="line">FWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4</span><br><span class="line">FWPM_LAYER_ALE_AUTH_CONNECT_V4</span><br></pre></td></tr></table></figure>
+
+<p>(2) 获取进程信息后，存储到 <code>FlowContext</code> 并绑定到数据处理层</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// TCP数据层</span></span><br><span class="line">FWPM_LAYER_STREAM_V4</span><br><span class="line"><span class="comment">// UDP数据层</span></span><br><span class="line">FWPM_LAYER_DATAGRAM_DATA_V4</span><br></pre></td></tr></table></figure>
+
+<p>注意：如果绑定 <code>TRANSPORT</code> 层会先于 <code>ESTABLISHED</code> 抓到的UDP第1个包，所以就没有进程信息</p>
+<h4 id="相关函数和结构体"><a href="#相关函数和结构体" class="headerlink" title="相关函数和结构体"></a>相关函数和结构体</h4><p>我们以在 <code>WIN7</code> 目标系统运行为例，注册时所使用的相关函数的通用定义为</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">FwpmEngineOpen</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ <span class="keyword">const</span> <span class="keyword">wchar_t</span>                   *serverName,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_           UINT32                    authnService,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_       SEC_WINNT_AUTH_IDENTITY_W *authIdentity,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ <span class="keyword">const</span> FWPM_SESSION              *session,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_          HANDLE                    *engineHandle</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 打开WFP过滤引擎</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">FwpsCalloutRegister</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Inout_         <span class="keyword">void</span>         *deviceObject,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      <span class="keyword">const</span> FWPS_CALLOUT *callout,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_opt_       UINT32       *calloutId</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 注册呼出接口函数</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">FwpmCalloutAdd</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_            HANDLE               engineHandle,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      <span class="keyword">const</span> FWPM_CALLOUT         *callout,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_        PSECURITY_DESCRIPTOR sd,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_opt_       UINT32               *id</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 添加呼出接口层</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD WINAPI <span class="title">FwpmFilterAdd</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_            HANDLE              engineHandle,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      <span class="keyword">const</span> FWPM_FILTER         *filter,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_        SECURITY_DESCRIPTOR sd,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_opt_       UINT64              *id</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 添加过滤规则</span></span><br></pre></td></tr></table></figure>
+
+<p>以上几个函数的参数中，还有3个关键的结构体参数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">FWPS_CALLOUT0_</span> &#123;</span></span><br><span class="line">  GUID                                calloutKey; <span class="comment">// 注册时提供的Callout唯一ID</span></span><br><span class="line">  UINT32                              flags;</span><br><span class="line">  FWPS_CALLOUT_CLASSIFY_FN0           classifyFn; <span class="comment">// 每当有网络数据要处理时，筛选器引擎都会调用此函数</span></span><br><span class="line">  FWPS_CALLOUT_NOTIFY_FN0             notifyFn;</span><br><span class="line">  FWPS_CALLOUT_FLOW_DELETE_NOTIFY_FN0 flowDeleteFn; <span class="comment">// 每当调用项处理的数据流终止时，筛选器引擎都会调用此函数</span></span><br><span class="line">&#125; FWPS_CALLOUT0; <span class="comment">// 设置回调函数</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">FWPM_CALLOUT0_</span> &#123;</span></span><br><span class="line">  GUID               calloutKey; <span class="comment">// 与上边的Callout唯一ID相同</span></span><br><span class="line">  FWPM_DISPLAY_DATA0 displayData; <span class="comment">// 用于描述Callout的字符串</span></span><br><span class="line">  UINT32             flags;</span><br><span class="line">  GUID               *providerKey;</span><br><span class="line">  FWP_BYTE_BLOB      providerData;</span><br><span class="line">  GUID               applicableLayer; <span class="comment">// 当前Callout要应用到哪个层上</span></span><br><span class="line">  UINT32             calloutId;</span><br><span class="line">&#125; FWPM_CALLOUT0; <span class="comment">// 设置想要注册的层</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">FWPM_FILTER0_</span> &#123;</span></span><br><span class="line">  GUID                   filterKey; <span class="comment">// 初始化为0，添加到引擎时，会自动生成</span></span><br><span class="line">  FWPM_DISPLAY_DATA0     displayData; <span class="comment">// 用于描述Filter的字符串</span></span><br><span class="line">  UINT32                 flags;</span><br><span class="line">  GUID                   *providerKey;</span><br><span class="line">  FWP_BYTE_BLOB          providerData;</span><br><span class="line">  GUID                   layerKey; <span class="comment">// 当前Filter要应用到哪个层上</span></span><br><span class="line">  GUID                   subLayerKey; <span class="comment">// 使用通用子层</span></span><br><span class="line">  FWP_VALUE0             weight; <span class="comment">// 权重，设置为FWP_EMPTY，引擎会自动分配</span></span><br><span class="line">  UINT32                 numFilterConditions; <span class="comment">// 过滤条件的数量</span></span><br><span class="line">  FWPM_FILTER_CONDITION0 *filterCondition; <span class="comment">// 过滤条件的内容</span></span><br><span class="line">  FWPM_ACTION0           action; <span class="comment">// 要行使的规则，允许或阻止，或由Callout返回规则</span></span><br><span class="line">  <span class="keyword">union</span> &#123;</span><br><span class="line">    UINT64 rawContext;</span><br><span class="line">    GUID   providerContextKey;</span><br><span class="line">  &#125;;</span><br><span class="line">  GUID                   *reserved;</span><br><span class="line">  UINT64                 filterId;</span><br><span class="line">  FWP_VALUE0             effectiveWeight;</span><br><span class="line">&#125; FWPM_FILTER0; <span class="comment">// 设置对应层的过滤规则</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="初始化全局变量"><a href="#初始化全局变量" class="headerlink" title="初始化全局变量"></a>初始化全局变量</h4><p>定义和初始化相关全局变量，使用 <code>VS2015</code> + <code>WDK10.0.15063.0</code> 平台，目标运行在 <code>WIN7</code> 及以上系统</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NDIS_WDM 1</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> NDIS620 1</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;guiddef.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;fwpmk.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;fwpsk.h&gt;</span></span></span><br><span class="line"><span class="comment">// 在附加依赖项中添加</span></span><br><span class="line"><span class="comment">// $(DDK_LIB_PATH)fwpkclnt.lib</span></span><br><span class="line"><span class="comment">// 结构体定义</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">REGISTER_INFO</span> &#123;</span></span><br><span class="line">    GUID FwpmLayerGuid;</span><br><span class="line">    GUID FwpmSubLayerGuid;</span><br><span class="line">    GUID FwpsCalloutGuid;</span><br><span class="line">    UINT32 FwpsCalloutID;</span><br><span class="line">    UINT32 FwpmCalloutID;</span><br><span class="line">    UINT64 FwpmFilterID;</span><br><span class="line">&#125; REGISTER_INFO, *PREGISTER_INFO;</span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">FLOWCXT_ENTRY</span> &#123;</span></span><br><span class="line">    LIST_ENTRY Entry;</span><br><span class="line">    UINT64 flowId;</span><br><span class="line">    UINT16 layerId;</span><br><span class="line">    UINT32 calloutId;</span><br><span class="line">    UINT64 Pid;</span><br><span class="line">    WCHAR Path[MAX_PATH];</span><br><span class="line">&#125; FLOWCXT_ENTRY, *PFLOWCXT_ENTRY;</span><br><span class="line"><span class="comment">// 全局变量</span></span><br><span class="line">KSPIN_LOCK MyFlowCtxLock = <span class="number">0</span>;</span><br><span class="line">LIST_ENTRY MyFlowCtxList = &#123; <span class="number">0</span> &#125;; <span class="comment">// 卸载时要释放FlowContext</span></span><br><span class="line">PDEVICE_OBJECT MyNetDevice = <span class="literal">NULL</span>;</span><br><span class="line">REGISTER_INFO MyConnect = &#123;</span><br><span class="line">    <span class="comment">// FWPM_LAYER_ALE_AUTH_CONNECT_V4</span></span><br><span class="line">    &#123; <span class="number">0xc38d57d1</span>, <span class="number">0x05a7</span>, <span class="number">0x4c33</span>, <span class="number">0x90</span>, <span class="number">0x4f</span>, <span class="number">0x7f</span>, <span class="number">0xbc</span>, <span class="number">0xee</span>, <span class="number">0xe6</span>, <span class="number">0x0e</span>, <span class="number">0x82</span> &#125;,</span><br><span class="line">    <span class="comment">// FWPM_SUBLAYER_UNIVERSAL</span></span><br><span class="line">    &#123; <span class="number">0xeebecc03</span>, <span class="number">0xced4</span>, <span class="number">0x4380</span>, <span class="number">0x81</span>, <span class="number">0x9a</span>, <span class="number">0x27</span>, <span class="number">0x34</span>, <span class="number">0x39</span>, <span class="number">0x7b</span>, <span class="number">0x2b</span>, <span class="number">0x74</span> &#125;,</span><br><span class="line">    <span class="comment">// 自定义的GUID</span></span><br><span class="line">    &#123; <span class="number">0xd969fc61</span>, <span class="number">0x6fb2</span>, <span class="number">0x4504</span>, <span class="number">0x91</span>, <span class="number">0xce</span>, <span class="number">0xa9</span>, <span class="number">0x7c</span>, <span class="number">0x3c</span>, <span class="number">0x32</span>, <span class="number">0xad</span>, <span class="number">0x36</span> &#125; &#125;;</span><br><span class="line">REGISTER_INFO MyDatagram = &#123;</span><br><span class="line">    <span class="comment">// FWPM_LAYER_DATAGRAM_DATA_V4</span></span><br><span class="line">    &#123; <span class="number">0x3d08bf4e</span>, <span class="number">0x45f6</span>, <span class="number">0x4930</span>, <span class="number">0xa9</span>, <span class="number">0x22</span>, <span class="number">0x41</span>, <span class="number">0x70</span>, <span class="number">0x98</span>, <span class="number">0xe2</span>, <span class="number">0x00</span>, <span class="number">0x27</span> &#125;,</span><br><span class="line">    <span class="comment">// FWPM_SUBLAYER_UNIVERSAL</span></span><br><span class="line">    &#123; <span class="number">0xeebecc03</span>, <span class="number">0xced4</span>, <span class="number">0x4380</span>, <span class="number">0x81</span>, <span class="number">0x9a</span>, <span class="number">0x27</span>, <span class="number">0x34</span>, <span class="number">0x39</span>, <span class="number">0x7b</span>, <span class="number">0x2b</span>, <span class="number">0x74</span> &#125;,</span><br><span class="line">     <span class="comment">// 自定义的GUID</span></span><br><span class="line">    &#123; <span class="number">0xd969fc62</span>, <span class="number">0x6fb2</span>, <span class="number">0x4504</span>, <span class="number">0x91</span>, <span class="number">0xce</span>, <span class="number">0xa9</span>, <span class="number">0x7c</span>, <span class="number">0x3c</span>, <span class="number">0x32</span>, <span class="number">0xad</span>, <span class="number">0x36</span> &#125; &#125;;</span><br></pre></td></tr></table></figure>
+
+<h4 id="注册过滤引擎"><a href="#注册过滤引擎" class="headerlink" title="注册过滤引擎"></a>注册过滤引擎</h4><p>实现一个过滤功能需要：先注册Callout层，再添加Callout层到引擎中，最后再绑定Fillter并添加到引擎中</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">AddFilterEngine</span><span class="params">(PREGISTER_INFO RegInfo, BOOLEAN UseFlowCtx)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    HANDLE FwpmEngine = <span class="literal">NULL</span>;</span><br><span class="line">    FWPM_SESSION FwpmSession = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    FWPS_CALLOUT FwpsCallout = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    FWPM_CALLOUT FwpmCallout = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    FWPM_FILTER FwpmFilter = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    <span class="comment">// 打开WFP引擎</span></span><br><span class="line">    Status = FwpmEngineOpen(<span class="literal">NULL</span>, RPC_C_AUTHN_WINNT, <span class="literal">NULL</span>, &amp;FwpmSession, &amp;FwpmEngine);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> Status;</span><br><span class="line">    <span class="keyword">do</span> </span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 注册呼出接口函数</span></span><br><span class="line">        FwpsCallout.calloutKey = RegInfo-&gt;FwpsCalloutGuid;</span><br><span class="line">        FwpsCallout.classifyFn = FwpsCalloutClassifyFn;</span><br><span class="line">        FwpsCallout.notifyFn = FwpsCalloutNotifyFn;</span><br><span class="line">        <span class="keyword">if</span> (UseFlowCtx)</span><br><span class="line">        &#123;</span><br><span class="line">            FwpsCallout.flowDeleteFn = FwpsCalloutFlowDeleteFn;</span><br><span class="line">            FwpsCallout.flags = FWP_CALLOUT_FLAG_CONDITIONAL_ON_FLOW;</span><br><span class="line">        &#125;</span><br><span class="line">        Status = FwpsCalloutRegister(MyNetDevice, &amp;FwpsCallout, &amp;RegInfo-&gt;FwpsCalloutID);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 添加呼出接口层</span></span><br><span class="line">        FwpmCallout.displayData.name = <span class="string">L&quot;FwpmCallout&quot;</span>;</span><br><span class="line">        FwpmCallout.displayData.description = <span class="string">L&quot;FwpmCallout&quot;</span>;</span><br><span class="line">        FwpmCallout.calloutKey = RegInfo-&gt;FwpsCalloutGuid;</span><br><span class="line">        FwpmCallout.applicableLayer = RegInfo-&gt;FwpmLayerGuid;</span><br><span class="line">        Status = FwpmCalloutAdd(FwpmEngine, &amp;FwpmCallout, <span class="literal">NULL</span>, &amp;RegInfo-&gt;FwpmCalloutID);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 添加过滤规则</span></span><br><span class="line">        FwpmFilter.displayData.name = <span class="string">L&quot;FwpmFilter&quot;</span>;</span><br><span class="line">        FwpmFilter.displayData.description = <span class="string">L&quot;FwpmFilter&quot;</span>;</span><br><span class="line">        FwpmFilter.layerKey = RegInfo-&gt;FwpmLayerGuid;</span><br><span class="line">        FwpmFilter.subLayerKey = RegInfo-&gt;FwpmSubLayerGuid;</span><br><span class="line">        FwpmFilter.weight.type = FWP_EMPTY;</span><br><span class="line">        FwpmFilter.action.type = FWP_ACTION_CALLOUT_TERMINATING;</span><br><span class="line">        FwpmFilter.action.calloutKey = RegInfo-&gt;FwpsCalloutGuid;</span><br><span class="line">        Status = FwpmFilterAdd(FwpmEngine, &amp;FwpmFilter, <span class="literal">NULL</span>, &amp;RegInfo-&gt;FwpmFilterID);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) DelFilterEngine(RegInfo);</span><br><span class="line">    FwpmEngineClose(FwpmEngine);</span><br><span class="line">    <span class="keyword">return</span> Status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>删除过滤功能的函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">DelFilterEngine</span><span class="params">(PREGISTER_INFO RegInfo)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    HANDLE FwpmEngine = <span class="literal">NULL</span>;</span><br><span class="line">    FWPM_SESSION FwpmSession = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    Status = FwpmEngineOpen(<span class="literal">NULL</span>, RPC_C_AUTHN_WINNT, <span class="literal">NULL</span>, &amp;FwpmSession, &amp;FwpmEngine);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> Status;</span><br><span class="line">    <span class="keyword">if</span> (RegInfo-&gt;FwpmFilterID)</span><br><span class="line">    &#123;</span><br><span class="line">        FwpmFilterDeleteById(FwpmEngine, RegInfo-&gt;FwpmFilterID);</span><br><span class="line">        RegInfo-&gt;FwpmFilterID = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (RegInfo-&gt;FwpmCalloutID)</span><br><span class="line">    &#123;</span><br><span class="line">        FwpmCalloutDeleteById(FwpmEngine, RegInfo-&gt;FwpmCalloutID);</span><br><span class="line">        RegInfo-&gt;FwpmCalloutID = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (RegInfo-&gt;FwpsCalloutID)</span><br><span class="line">    &#123;</span><br><span class="line">        FwpsCalloutUnregisterById(RegInfo-&gt;FwpsCalloutID);</span><br><span class="line">        RegInfo-&gt;FwpsCalloutID = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    FwpmEngineClose(FwpmEngine);</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="相关回调函数"><a href="#相关回调函数" class="headerlink" title="相关回调函数"></a>相关回调函数</h4><p>如下为注册Callout层时提供的相关函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> NTAPI <span class="title">FwpsCalloutFlowDeleteFn</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN UINT16 layerId,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN UINT32 calloutId,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN UINT64 flowContext)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    PFLOWCXT_ENTRY FlowCtxEntry = (PFLOWCXT_ENTRY)flowContext;</span><br><span class="line">    <span class="keyword">if</span> (!FlowCtxEntry) <span class="keyword">return</span>;</span><br><span class="line">    <span class="keyword">if</span> (!FlowCtxEntry-&gt;Entry.Flink || !FlowCtxEntry-&gt;Entry.Blink) <span class="keyword">return</span>;</span><br><span class="line">    Status = FwpsFlowRemoveContext(FlowCtxEntry-&gt;flowId, layerId, calloutId);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span>;</span><br><span class="line">    RemoveFlowCtxList(FlowCtxEntry);</span><br><span class="line">    ExFreePool(FlowCtxEntry);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">FwpsCalloutNotifyFn</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN FWPS_CALLOUT_NOTIFY_TYPE notifyType,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN <span class="keyword">const</span> GUID *filterKey,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN FWPS_FILTER *filter)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UNREFERENCED_PARAMETER(notifyType);</span><br><span class="line">    UNREFERENCED_PARAMETER(filterKey);</span><br><span class="line">    UNREFERENCED_PARAMETER(filter);</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> NTAPI <span class="title">FwpsCalloutClassifyFn</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN <span class="keyword">const</span> FWPS_INCOMING_VALUES *inFixedValues,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN <span class="keyword">const</span> FWPS_INCOMING_METADATA_VALUES *inMetaValues,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN OUT <span class="keyword">void</span> *layerData,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN OPTIONAL <span class="keyword">const</span> <span class="keyword">void</span> *classifyContext,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN <span class="keyword">const</span> FWPS_FILTER *filter,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN UINT64 flowContext,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN OUT FWPS_CLASSIFY_OUT *classifyOut)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UNREFERENCED_PARAMETER(classifyContext);</span><br><span class="line">    UNREFERENCED_PARAMETER(filter);</span><br><span class="line">    UNREFERENCED_PARAMETER(flowContext);</span><br><span class="line">    <span class="comment">// 设置允许动作，并清除操作标志位</span></span><br><span class="line">    classifyOut-&gt;actionType = FWP_ACTION_PERMIT;</span><br><span class="line">    <span class="keyword">if</span> (filter-&gt;flags &amp; FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)</span><br><span class="line">        classifyOut-&gt;rights &amp;= (~FWPS_RIGHT_ACTION_WRITE);</span><br><span class="line">    <span class="comment">// 判断触发的哪个层</span></span><br><span class="line">    <span class="keyword">switch</span> (inFixedValues-&gt;layerId)</span><br><span class="line">    &#123;</span><br><span class="line">    <span class="keyword">case</span> FWPS_LAYER_DATAGRAM_DATA_V4: <span class="comment">// 24</span></span><br><span class="line">        DbgPrint(<span class="string">&quot;FWPS_LAYER_DATAGRAM_DATA_V4\n&quot;</span>);</span><br><span class="line">        <span class="comment">// 根据flowContext决定是否拦截</span></span><br><span class="line">        <span class="comment">// classifyOut-&gt;actionType = FWP_ACTION_BLOCK;</span></span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="keyword">case</span> FWPS_LAYER_ALE_AUTH_CONNECT_V4: <span class="comment">// 48</span></span><br><span class="line">        DbgPrint(<span class="string">&quot;FWPS_LAYER_ALE_AUTH_CONNECT_V4\n&quot;</span>);</span><br><span class="line">        <span class="comment">// 申请流上下文并存入链表中</span></span><br><span class="line">        AllocateFlowContext(inMetaValues, FWPS_LAYER_DATAGRAM_DATA_V4, MyDatagram.FwpsCalloutID);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 设置允许动作，并清除操作标志位</span></span><br><span class="line">    classifyOut-&gt;actionType = FWP_ACTION_PERMIT;</span><br><span class="line">    <span class="keyword">if</span> (filter-&gt;flags &amp; FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)</span><br><span class="line">        classifyOut-&gt;rights &amp;= (~FWPS_RIGHT_ACTION_WRITE);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="流上下文链表操作"><a href="#流上下文链表操作" class="headerlink" title="流上下文链表操作"></a>流上下文链表操作</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">AllocateFlowContext</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN <span class="keyword">const</span> FWPS_INCOMING_METADATA_VALUES *inMetaValues,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN FWPS_BUILTIN_LAYERS FwpsLayerID,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN UINT32 FwpsCalloutID)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PFLOWCXT_ENTRY FlowCtxEntry = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="keyword">if</span> (!inMetaValues) <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="comment">// 检测信息是否有效</span></span><br><span class="line">    <span class="keyword">if</span> (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_FLOW_HANDLE))</span><br><span class="line">        <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="keyword">if</span> (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_PROCESS_ID))</span><br><span class="line">        <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="keyword">if</span> (!FWPS_IS_METADATA_FIELD_PRESENT(inMetaValues, FWPS_METADATA_FIELD_PROCESS_PATH))</span><br><span class="line">        <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="comment">// 申请流上下文内容</span></span><br><span class="line">    FlowCtxEntry = ExAllocatePool(NonPagedPoolNx, <span class="keyword">sizeof</span>(FLOWCXT_ENTRY));</span><br><span class="line">    <span class="keyword">if</span> (!FlowCtxEntry) <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="comment">// 初始化需要的信息</span></span><br><span class="line">    RtlZeroMemory(FlowCtxEntry, <span class="keyword">sizeof</span>(FLOWCXT_ENTRY));</span><br><span class="line">    FlowCtxEntry-&gt;flowId = inMetaValues-&gt;flowHandle;</span><br><span class="line">    FlowCtxEntry-&gt;layerId = FwpsLayerID;</span><br><span class="line">    FlowCtxEntry-&gt;calloutId = FwpsCalloutID;</span><br><span class="line">    FlowCtxEntry-&gt;Pid = inMetaValues-&gt;processId;</span><br><span class="line">    RtlCopyMemory(FlowCtxEntry-&gt;Path, inMetaValues-&gt;processPath-&gt;data, inMetaValues-&gt;processPath-&gt;size);</span><br><span class="line">    DbgPrint(<span class="string">&quot;flowId:%llu layerId:%u calloutId:%u pid:%llu\n path:%ws\n&quot;</span>,</span><br><span class="line">        FlowCtxEntry-&gt;flowId,FlowCtxEntry-&gt;layerId, FlowCtxEntry-&gt;calloutId, FlowCtxEntry-&gt;Pid, FlowCtxEntry-&gt;Path);</span><br><span class="line">    <span class="comment">// 关联流上下文到目标层中</span></span><br><span class="line">    Status = FwpsFlowAssociateContext(</span><br><span class="line">        inMetaValues-&gt;flowHandle, FlowCtxEntry-&gt;layerId, FlowCtxEntry-&gt;calloutId, (ULONG64)FlowCtxEntry);</span><br><span class="line">    <span class="keyword">if</span> (NT_SUCCESS(Status))</span><br><span class="line">        InsertFlowCtxList(FlowCtxEntry);</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        ExFreePool(FlowCtxEntry);</span><br><span class="line">    <span class="keyword">return</span> Status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOLEAN <span class="title">RemoveFlowCtxList</span><span class="params">(PFLOWCXT_ENTRY FlowCtxEntry)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    KIRQL OldIrql = <span class="number">0</span>;</span><br><span class="line">    BOOLEAN Result = FALSE;</span><br><span class="line">    <span class="keyword">if</span> (!FlowCtxEntry) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">if</span> (!FlowCtxEntry-&gt;Entry.Blink) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">if</span> (!FlowCtxEntry-&gt;Entry.Flink) <span class="keyword">return</span> FALSE;</span><br><span class="line">    ExAcquireSpinLock(&amp;MyFlowCtxLock, &amp;OldIrql);</span><br><span class="line">    Result = RemoveEntryList(&amp;FlowCtxEntry-&gt;Entry);</span><br><span class="line">    ExReleaseSpinLock(&amp;MyFlowCtxLock, OldIrql);</span><br><span class="line">    FlowCtxEntry-&gt;Entry.Blink = <span class="literal">NULL</span>;</span><br><span class="line">    FlowCtxEntry-&gt;Entry.Flink = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">return</span> Result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">DestoryFlowCtxList</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    KIRQL OldIrql = <span class="number">0</span>;</span><br><span class="line">    PLIST_ENTRY Entry = <span class="literal">NULL</span>;</span><br><span class="line">    PFLOWCXT_ENTRY FlowCtxEntry = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    <span class="keyword">while</span> (!IsListEmpty(&amp;MyFlowCtxList))</span><br><span class="line">    &#123;</span><br><span class="line">        ExAcquireSpinLock(&amp;MyFlowCtxLock, &amp;OldIrql);</span><br><span class="line">        Entry = RemoveHeadList(&amp;MyFlowCtxList);</span><br><span class="line">        ExReleaseSpinLock(&amp;MyFlowCtxLock, OldIrql);</span><br><span class="line">        <span class="keyword">if</span> (Entry == &amp;MyFlowCtxList) <span class="keyword">break</span>; <span class="comment">// 链表为空</span></span><br><span class="line">        FlowCtxEntry = CONTAINING_RECORD(Entry, FLOWCXT_ENTRY, Entry);</span><br><span class="line">        FlowCtxEntry-&gt;Entry.Blink = <span class="literal">NULL</span>;</span><br><span class="line">        FlowCtxEntry-&gt;Entry.Flink = <span class="literal">NULL</span>;</span><br><span class="line">        Status = FwpsFlowRemoveContext(</span><br><span class="line">            FlowCtxEntry-&gt;flowId, FlowCtxEntry-&gt;layerId, FlowCtxEntry-&gt;calloutId);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="驱动的入口函数"><a href="#驱动的入口函数" class="headerlink" title="驱动的入口函数"></a>驱动的入口函数</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">DriverEntry</span><span class="params">(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    UNREFERENCED_PARAMETER(RegistryPath);</span><br><span class="line">    DbgPrint(<span class="string">&quot;Hello\n&quot;</span>);</span><br><span class="line">    <span class="comment">// 初始化链表</span></span><br><span class="line">    InitializeListHead(&amp;MyFlowCtxList);</span><br><span class="line">    KeInitializeSpinLock(&amp;MyFlowCtxLock);</span><br><span class="line">    DriverObject-&gt;DriverUnload = DriverUnload;</span><br><span class="line">    <span class="comment">// 创建网络设备</span></span><br><span class="line">    Status = IoCreateDevice(DriverObject, <span class="number">0</span>, <span class="literal">NULL</span>,</span><br><span class="line">        FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &amp;MyNetDevice);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> Status;</span><br><span class="line">    <span class="comment">// 注册过滤引擎</span></span><br><span class="line">    <span class="keyword">do</span> </span><br><span class="line">    &#123;</span><br><span class="line">        Status = AddFilterEngine(&amp;MyDatagram, TRUE);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">        Status = AddFilterEngine(&amp;MyConnect, FALSE);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">break</span>;</span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line">    <span class="comment">// 检查是否失败</span></span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        DelFilterEngine(&amp;MyDatagram);</span><br><span class="line">        DelFilterEngine(&amp;MyConnect);</span><br><span class="line">        IoDeleteDevice(MyNetDevice);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> Status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在驱动卸载时，注意要主动释放流上下文</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">DriverUnload</span><span class="params">(IN PDRIVER_OBJECT DriverObject)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UNREFERENCED_PARAMETER(DriverObject);</span><br><span class="line">    DelFilterEngine(&amp;MyConnect);</span><br><span class="line">    DestoryFlowCtxList();</span><br><span class="line">    DelFilterEngine(&amp;MyDatagram);</span><br><span class="line">    IoDeleteDevice(MyNetDevice);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/" rel="tag"># 网络相关</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/07/18/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E4%BD%BF%E7%94%A8IPFilter%E5%AE%9E%E7%8E%B0%E6%95%B0%E6%8D%AE%E5%8C%85%E8%BF%87%E6%BB%A4-1/" rel="prev" title="使用IPFilter实现数据包过滤(1)">
+                  <i class="fa fa-chevron-left"></i> 使用IPFilter实现数据包过滤(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/07/23/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%9C%A8%E5%BA%94%E7%94%A8%E5%B1%82%E6%A8%A1%E6%8B%9F%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE-1/" rel="next" title="在应用层模拟键盘按键(1)">
+                  在应用层模拟键盘按键(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

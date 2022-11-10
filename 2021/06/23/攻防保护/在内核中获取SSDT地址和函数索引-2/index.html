@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 在32位系统中SSDT已经直接导出，这里主要是在64位系统中获取SSDT地址， 同样参照 Blackbone 的部分代码进行修改：https:&#x2F;&#x2F;github.com&#x2F;DarthTon&#x2F;Blac">
+<meta property="og:type" content="article">
+<meta property="og:title" content="在内核中获取SSDT地址和函数索引(2)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2021/06/23/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E8%8E%B7%E5%8F%96SSDT%E5%9C%B0%E5%9D%80%E5%92%8C%E5%87%BD%E6%95%B0%E7%B4%A2%E5%BC%95-2/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 在32位系统中SSDT已经直接导出，这里主要是在64位系统中获取SSDT地址， 同样参照 Blackbone 的部分代码进行修改：https:&#x2F;&#x2F;github.com&#x2F;DarthTon&#x2F;Blac">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-06-23T06:54:26.000Z">
+<meta property="article:modified_time" content="2022-07-28T06:52:23.053Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="攻防保护">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2021/06/23/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E8%8E%B7%E5%8F%96SSDT%E5%9C%B0%E5%9D%80%E5%92%8C%E5%87%BD%E6%95%B0%E7%B4%A2%E5%BC%95-2/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>在内核中获取SSDT地址和函数索引(2) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">工作原理</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-%E8%8E%B7%E5%8F%96%E7%B3%BB%E7%BB%9F%E6%A8%A1%E5%9D%97%E5%9C%B0%E5%9D%80"><span class="nav-number">2.1.</span> <span class="nav-text">1.获取系统模块地址</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-%E8%8E%B7%E5%8F%96SSDT%E5%9C%B0%E5%9D%80"><span class="nav-number">2.2.</span> <span class="nav-text">2.获取SSDT地址</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-%E8%8E%B7%E5%8F%96%E5%87%BD%E6%95%B0%E7%9A%84%E7%B4%A2%E5%BC%95"><span class="nav-number">2.3.</span> <span class="nav-text">3.获取函数的索引</span></a></li></ol></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2021/06/23/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E8%8E%B7%E5%8F%96SSDT%E5%9C%B0%E5%9D%80%E5%92%8C%E5%87%BD%E6%95%B0%E7%B4%A2%E5%BC%95-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          在内核中获取SSDT地址和函数索引(2)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2021-06-23 14:54:26" itemprop="dateCreated datePublished" datetime="2021-06-23T14:54:26+08:00">2021-06-23</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2022-07-28 14:52:23" itemprop="dateModified" datetime="2022-07-28T14:52:23+08:00">2022-07-28</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" itemprop="url" rel="index"><span itemprop="name">攻防保护</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>在32位系统中SSDT已经直接导出，这里主要是在64位系统中获取SSDT地址，<br>同样参照 <code>Blackbone</code> 的部分代码进行修改：<a target="_blank" rel="noopener" href="https://github.com/DarthTon/Blackbone">https://github.com/DarthTon/Blackbone</a></p>
+<h4 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h4><h5 id="1-获取系统模块地址"><a href="#1-获取系统模块地址" class="headerlink" title="1.获取系统模块地址"></a>1.获取系统模块地址</h5><p>与上一篇文章中获取进程的DLL类似，这里使用 <code>ZwQuerySystemInformation</code> 函数，<br>指定其class参数为11<code>(SystemModuleInformation)</code> 时，可以获取系统全部模块的数组</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">ZwQuerySystemInformation</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG SystemInformationClass,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN OUT PVOID SystemInformation,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG SystemInformationLength,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PULONG ReturnLength OPTIONAL)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>对应数组的结构体如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">PROCESS_MODULE_INFO</span> &#123;</span></span><br><span class="line">    HANDLE Section;</span><br><span class="line">    PVOID MappedBase;</span><br><span class="line">    PVOID ImageBase;</span><br><span class="line">    ULONG ImageSize;</span><br><span class="line">    ULONG Flags;</span><br><span class="line">    USHORT LoadOrderIndex;</span><br><span class="line">    USHORT InitOrderIndex;</span><br><span class="line">    USHORT LoadCount;</span><br><span class="line">    USHORT OffsetToFileName;</span><br><span class="line">    UCHAR FullPathName[<span class="number">256</span>];</span><br><span class="line">&#125; PROCESS_MODULE_INFO, *PPROCESS_MODULE_INFO;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">PROCESS_MODULES</span> &#123;</span></span><br><span class="line">    ULONG NumberOfModules;</span><br><span class="line">    PROCESS_MODULE_INFO Modules[<span class="number">1</span>];</span><br><span class="line">&#125; PROCESS_MODULES, *PPROCESS_MODULES;</span><br></pre></td></tr></table></figure>
+
+<p>为了查找内核模块，我们使用 <code>&quot;NtOpenFile&quot;</code> 函数的地址作为定位条件</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line">ULONG gKernelSize = <span class="number">0</span>;</span><br><span class="line">PVOID gKernelAddr = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line"><span class="function">PVOID <span class="title">GetKernelAddress</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    UNICODE_STRING FuncName = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PUCHAR FuncAddr = <span class="literal">NULL</span>;</span><br><span class="line">    ULONG RetLen = <span class="number">0</span>;</span><br><span class="line">    PPROCESS_MODULES ProcMods = <span class="literal">NULL</span>;</span><br><span class="line">    PPROCESS_MODULE_INFO ModInfo = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">if</span> (gKernelAddr)</span><br><span class="line">        <span class="keyword">return</span> gKernelAddr;</span><br><span class="line">    <span class="comment">// 获取NtOpenFile函数的地址</span></span><br><span class="line">    RtlInitUnicodeString(&amp;FuncName, <span class="string">L&quot;NtOpenFile&quot;</span>);</span><br><span class="line">    FuncAddr = (PUCHAR)MmGetSystemRoutineAddress(&amp;FuncName);</span><br><span class="line">    <span class="keyword">if</span> (!FuncAddr)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 查询需要的大小 SystemModuleInformation 11</span></span><br><span class="line">    Status = ZwQuerySystemInformation(<span class="number">11</span>, <span class="literal">NULL</span>, <span class="number">0</span>, &amp;RetLen);</span><br><span class="line">    <span class="keyword">if</span> (Status != STATUS_INFO_LENGTH_MISMATCH)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 申请内存空间</span></span><br><span class="line">    ProcMods = (PPROCESS_MODULES)ExAllocatePoolWithTag(NonPagedPool, RetLen * 2, &#x27;ssss&#x27;);</span><br><span class="line">    <span class="keyword">if</span> (!ProcMods)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    RtlZeroMemory(ProcMods, RetLen * <span class="number">2</span>);</span><br><span class="line">    <span class="comment">// 查询系统模块的信息</span></span><br><span class="line">    Status = ZwQuerySystemInformation(<span class="number">11</span>, ProcMods, RetLen * <span class="number">2</span>, &amp;RetLen);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        ExFreePoolWithTag(ProcMods, POOL_TAG);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 循环匹配NtOpenFile地址是否在目标模块中</span></span><br><span class="line">    ModInfo = ProcMods-&gt;Modules;</span><br><span class="line">    <span class="keyword">for</span> (ULONG i = <span class="number">0</span>; i &lt; ProcMods-&gt;NumberOfModules; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> ((FuncAddr &gt;= (PUCHAR)ModInfo[i].ImageBase) &amp;&amp;</span><br><span class="line">            (FuncAddr &lt; (PUCHAR)ModInfo[i].ImageBase + ModInfo[i].ImageSize))</span><br><span class="line">        &#123;</span><br><span class="line">            gKernelAddr = ModInfo[i].ImageBase;</span><br><span class="line">            gKernelSize = ModInfo[i].ImageSize;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ExFreePoolWithTag(ProcMods, POOL_TAG);</span><br><span class="line">    <span class="keyword">return</span> gKernelAddr;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="2-获取SSDT地址"><a href="#2-获取SSDT地址" class="headerlink" title="2.获取SSDT地址"></a>2.获取SSDT地址</h5><p>使用搜索特征码的方式查找，特征码搜索函数如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">SearchPattern</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PUCHAR Pattern, IN UCHAR Wildcard, IN ULONG Len,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PUCHAR BaseAddr, IN ULONG Size, OUT PUCHAR* Target)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!Pattern || !BaseAddr ||!Target)</span><br><span class="line">        <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="comment">// 循环匹配特征码</span></span><br><span class="line">    <span class="keyword">for</span> (ULONG i = <span class="number">0</span>; i &lt; (Size - Len); i++)</span><br><span class="line">    &#123;</span><br><span class="line">        BOOLEAN Found = TRUE;</span><br><span class="line">        <span class="keyword">for</span> (ULONG j = <span class="number">0</span>; j &lt; Len; j++)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">if</span> ((Pattern[j] != Wildcard) &amp;&amp; (Pattern[j] != BaseAddr[i + j]))</span><br><span class="line">            &#123;</span><br><span class="line">                Found = FALSE;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检查是否符合</span></span><br><span class="line">        <span class="keyword">if</span> (Found)</span><br><span class="line">        &#123;</span><br><span class="line">            *Target = BaseAddr + i;</span><br><span class="line">            <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在WIN7中，使用 <code>__readmsr(0xC0000082)</code> 读取 <code>C0000082</code> 寄存器，得到 <code>KiSystemCall64</code><br>的地址，然后再搜索 <code>4C8D15</code> 字节码，就可以找到 <code>KeServiceDescriptorTable</code> 的地址，但是<br>在WIN10中有变化，所以我们这里改为，在代码段中搜索带通配符的特征码来定位SSDT地址，<br>需要在上篇文章中定义的相关PE结构体信息</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">SYSTEM_SERVICE_TABLE</span> &#123;</span></span><br><span class="line">    PULONG_PTR ServiceTableBase;</span><br><span class="line">    PULONG ServiceCounterTableBase;</span><br><span class="line">    ULONG_PTR NumberOfServices;</span><br><span class="line">    PUCHAR ParamTableBase;</span><br><span class="line">&#125; SYSTEM_SERVICE_TABLE, *PSYSTEM_SERVICE_TABLE;</span><br><span class="line">PSYSTEM_SERVICE_TABLE gSsdtAddr = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line"><span class="function">PSYSTEM_SERVICE_TABLE <span class="title">GetSSDTAddress</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PUCHAR KernelAddr = <span class="literal">NULL</span>;</span><br><span class="line">    PIMAGE_DOS_HDR DosHdr = <span class="literal">NULL</span>;</span><br><span class="line">    PIMAGE_NT_HDR64 NtHdr64 = <span class="literal">NULL</span>;</span><br><span class="line">    PIMAGE_SECTION_HDR SecHdr = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    <span class="keyword">if</span> (gSsdtAddr)</span><br><span class="line">        <span class="keyword">return</span> gSsdtAddr;</span><br><span class="line">    <span class="comment">// 获取内核模块地址</span></span><br><span class="line">    KernelAddr = GetKernelAddress();</span><br><span class="line">    <span class="keyword">if</span> (!KernelAddr)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检测DOS头是否匹配</span></span><br><span class="line">    DosHdr = (PIMAGE_DOS_HDR)KernelAddr;</span><br><span class="line">    <span class="keyword">if</span> (DosHdr-&gt;e_magic != IMAGE_DOS_SIGN)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检测NT头是否匹配</span></span><br><span class="line">    NtHdr64 = (PIMAGE_NT_HDR64)(KernelAddr + DosHdr-&gt;e_lfanew);</span><br><span class="line">    <span class="keyword">if</span> (NtHdr64-&gt;Signature != IMAGE_NT_SIGN)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检测是不是64位PE文件</span></span><br><span class="line">    <span class="keyword">if</span> (NtHdr64-&gt;OptHeader64.Magic != IMAGE_NT_OPT_HDR64_MAGIC)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 循环遍历代码段</span></span><br><span class="line">    SecHdr = (PIMAGE_SECTION_HDR)(NtHdr64 + <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">for</span> (USHORT i = <span class="number">0</span>; i &lt; NtHdr64-&gt;FileHeader.NumberOfSections; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> ((SecHdr[i].Characteristics &amp; IMAGE_SCN_MEM_NOT_PAGED) &amp;&amp;</span><br><span class="line">            (SecHdr[i].Characteristics &amp; IMAGE_SCN_MEM_EXECUTE) &amp;&amp;</span><br><span class="line">            !(SecHdr[i].Characteristics &amp; IMAGE_SCN_MEM_DISCARDABLE) &amp;&amp;</span><br><span class="line">            (*(PULONG)SecHdr[i].Name != &#x27;TINI&#x27;) &amp;&amp;</span><br><span class="line">            (*(PULONG)SecHdr[i].Name != &#x27;EGAP&#x27;))</span><br><span class="line">        &#123;</span><br><span class="line">            PUCHAR Target = <span class="literal">NULL</span>;</span><br><span class="line">            UCHAR Pattern[] = <span class="string">&quot;\x4C\x8D\x15\xcc\xcc\xcc\xcc\x4C\x8D\x1D\xcc\xcc\xcc\xcc\xF7&quot;</span>;</span><br><span class="line">            Status = SearchPattern(Pattern, <span class="number">0xCC</span>, <span class="keyword">sizeof</span>(Pattern) - <span class="number">1</span>,</span><br><span class="line">                KernelAddr + SecHdr[i].VirtualAddress, SecHdr[i].Misc.VirtualSize, &amp;Target);</span><br><span class="line">            <span class="keyword">if</span> (NT_SUCCESS(Status))</span><br><span class="line">            &#123;</span><br><span class="line">                gSsdtAddr = (PSYSTEM_SERVICE_TABLE)(Target + *(PULONG)(Target + <span class="number">3</span>) + <span class="number">7</span>);</span><br><span class="line">                <span class="keyword">return</span> gSsdtAddr;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="3-获取函数的索引"><a href="#3-获取函数的索引" class="headerlink" title="3.获取函数的索引"></a>3.获取函数的索引</h5><p>从应用层API进入内核时，通过调用对应SSDT表中的索引，来调用对应函数，<br>这里借助于32位的 <code>ntdll.dll</code> 中导出的函数，根据字节码 <code>B8</code> 获取调用号，<br>要需要在上篇文章中获取导出函数的函数 <code>GetExportFuncAddr</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PVOID <span class="title">GetSSDTEntryByNtdll</span><span class="params">(IN PCSTR name)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    HANDLE hFile = <span class="literal">NULL</span>;</span><br><span class="line">    HANDLE hSection = <span class="literal">NULL</span>;</span><br><span class="line">    PVOID DllBase = <span class="literal">NULL</span>;</span><br><span class="line">    SIZE_T ViewSize = <span class="number">0</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    IO_STATUS_BLOCK IoStatus = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    OBJECT_ATTRIBUTES ObjAttrib = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    UNICODE_STRING NtDllName = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PUCHAR FuncAddr = <span class="literal">NULL</span>;</span><br><span class="line">    ULONG Index = <span class="number">0</span>;</span><br><span class="line">    PVOID KernelAddr = <span class="literal">NULL</span>;</span><br><span class="line">    PSYSTEM_SERVICE_TABLE SSDTAddr = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 获取32位的ntdll.dll</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> AMD64</span></span><br><span class="line">    RtlInitUnicodeString(&amp;NtDllName, <span class="string">L&quot;\\SystemRoot\\SysWOW64\\ntdll.dll&quot;</span>);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">    RtlInitUnicodeString(&amp;NtDllName, <span class="string">L&quot;\\SystemRoot\\System32\\ntdll.dll&quot;</span>);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    <span class="comment">// 打开ntdll.dll并进行映射</span></span><br><span class="line">    InitializeObjectAttributes(&amp;ObjAttrib, &amp;NtDllName,</span><br><span class="line">        OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br><span class="line">    Status = ZwOpenFile(&amp;hFile, FILE_GENERIC_READ, &amp;ObjAttrib,</span><br><span class="line">        &amp;IoStatus, FILE_SHARE_READ, FILE_SYNCHRONOUS_IO_NONALERT);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    InitializeObjectAttributes(&amp;ObjAttrib, <span class="literal">NULL</span>, OBJ_KERNEL_HANDLE, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br><span class="line">    Status = ZwCreateSection(&amp;hSection,</span><br><span class="line">        SECTION_MAP_READ, &amp;ObjAttrib, <span class="number">0</span>, PAGE_READONLY, <span class="number">0x01000000</span>, hFile);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        ZwClose(hFile);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    Status = ZwMapViewOfSection(hSection, ZwCurrentProcess(),</span><br><span class="line">        &amp;DllBase, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, &amp;ViewSize, ViewShare, MEM_TOP_DOWN, PAGE_READONLY);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        ZwClose(hSection);</span><br><span class="line">        ZwClose(hFile);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 获取导出函数的地址</span></span><br><span class="line">    FuncAddr = GetExportFuncAddr(DllBase, name);</span><br><span class="line">    <span class="keyword">if</span> (!FuncAddr)</span><br><span class="line">    &#123;</span><br><span class="line">        ZwUnmapViewOfSection(ZwCurrentProcess(), DllBase);</span><br><span class="line">        ZwClose(hSection);</span><br><span class="line">        ZwClose(hFile);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 获取调用号 字节码B8xxxxxxxx</span></span><br><span class="line">    Index = *(PULONG)(FuncAddr + <span class="number">1</span>);</span><br><span class="line">    ZwUnmapViewOfSection(ZwCurrentProcess(), DllBase);</span><br><span class="line">    ZwClose(hSection);</span><br><span class="line">    ZwClose(hFile);</span><br><span class="line">    <span class="comment">// 根据索引获取对应地址</span></span><br><span class="line">    KernelAddr = GetKernelAddress();</span><br><span class="line">    SSDTAddr = GetSSDTAddress();</span><br><span class="line">    <span class="keyword">if</span> (KernelAddr &amp;&amp; SSDTAddr)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (Index &gt; SSDTAddr-&gt;NumberOfServices)</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">        <span class="keyword">return</span> (PVOID)((PUCHAR)SSDTAddr-&gt;ServiceTableBase +</span><br><span class="line">            (((PLONG)SSDTAddr-&gt;ServiceTableBase)[Index] &gt;&gt; <span class="number">4</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" rel="tag"># 攻防保护</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2021/05/13/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E9%81%8D%E5%8E%86%E7%B3%BB%E7%BB%9F%E5%B7%B2%E5%8A%A0%E8%BD%BD%E7%9A%84%E9%A9%B1%E5%8A%A8%E6%96%87%E4%BB%B6-1/" rel="prev" title="遍历系统已加载的驱动文件(1)">
+                  <i class="fa fa-chevron-left"></i> 遍历系统已加载的驱动文件(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2021/08/06/USB%E7%9B%B8%E5%85%B3/%E5%9C%A8%E6%9C%8D%E5%8A%A1%E4%B8%AD%E7%9B%91%E6%8E%A7U%E7%9B%98%E6%8E%A5%E5%85%A5%E5%B9%B6%E8%8E%B7%E5%8F%96%E7%9B%98%E7%AC%A6-1/" rel="next" title="在服务中监控U盘接入并获取盘符(1)">
+                  在服务中监控U盘接入并获取盘符(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

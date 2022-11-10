@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 关于 INLINEHOOK 的技术，既可以用于驱动，又可以用于应用层，其原理本质上是汇编指令替换。 因为应用层进程之间内存空间有隔离，所以要想HOOK函数，需要先注入模块到目标进程中。  INL">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用InlineHook实现进程保护(3)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/08/02/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8InlineHook%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E4%BF%9D%E6%8A%A4-3/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 关于 INLINEHOOK 的技术，既可以用于驱动，又可以用于应用层，其原理本质上是汇编指令替换。 因为应用层进程之间内存空间有隔离，所以要想HOOK函数，需要先注入模块到目标进程中。  INL">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-08-02T01:30:06.000Z">
+<meta property="article:modified_time" content="2021-01-04T03:13:10.206Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="攻防保护">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/08/02/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8InlineHook%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E4%BF%9D%E6%8A%A4-3/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>使用InlineHook实现进程保护(3) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#INLINEHOOK%E7%9A%84%E5%8E%9F%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">INLINEHOOK的原理</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/08/02/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8InlineHook%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E4%BF%9D%E6%8A%A4-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用InlineHook实现进程保护(3)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-08-02 09:30:06" itemprop="dateCreated datePublished" datetime="2019-08-02T09:30:06+08:00">2019-08-02</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-01-04 11:13:10" itemprop="dateModified" datetime="2021-01-04T11:13:10+08:00">2021-01-04</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" itemprop="url" rel="index"><span itemprop="name">攻防保护</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>关于 <code>INLINEHOOK</code> 的技术，既可以用于驱动，又可以用于应用层，其原理本质上是汇编指令替换。<br>因为应用层进程之间内存空间有隔离，所以要想HOOK函数，需要先注入模块到目标进程中。</p>
+<h4 id="INLINEHOOK的原理"><a href="#INLINEHOOK的原理" class="headerlink" title="INLINEHOOK的原理"></a>INLINEHOOK的原理</h4><p>操作系统中的函数的开头多数是固定格式，这里以 <code>NtTerminateProcess</code> 为例，查看汇编指令</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">nt!NtTerminateProcess:</span><br><span class="line"><span class="number">805</span>d399e <span class="number">8b</span>ff            mov     edi,edi</span><br><span class="line"><span class="number">805</span>d39a0 <span class="number">55</span>              push    ebp</span><br><span class="line"><span class="number">805</span>d39a1 <span class="number">8b</span>ec            mov     ebp,esp</span><br><span class="line"><span class="number">805</span>d39a3 <span class="number">83</span>ec10          sub     esp,<span class="number">10</span>h</span><br><span class="line"><span class="number">805</span>d39a6 <span class="number">53</span>              push    ebx</span><br></pre></td></tr></table></figure>
+
+<p>可以看到前3条指令合起来占用5个字节的机器码，我们使用无条件跳转指令来替换它们，从而调用这个<br>函数时首先跳转到我们自定义的函数中，处理完毕后再跳转回来。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">_asm jmp MyNtTerminateProcess;</span><br><span class="line"><span class="number">00e1143</span>e e9e5fbffff      jmp     <span class="number">00e11028</span></span><br></pre></td></tr></table></figure>
+
+<p>以上机器码 <code>E9</code> 表示 <code>JMP</code> 指令，后边4个字节为跳转的偏移 <code>0xFFFFFBE5</code>，这里可以计算一下，<br>指令地址为 <code>0x00E1143E</code> 目标地址为 <code>0x00E11028</code>，属于往前跳，所以跳转偏移是个负数，转换完并<br>求绝对值为 <code>0x41B</code>，这里 <code>0x00E1143E - 0x41B = 0x00E11023</code> 并不是 <code>0x00E11028</code>，是因为跳转<br>指令本身占了 <code>5</code> 个字节，CPU是从执行完指令之后的地址开始算的。</p>
+<p>所以我们在替换 <code>NtTerminateProcess</code> 函数首 <code>5</code> 个字节时，可以使用如下公式计算跳转偏移</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">跳转偏移 = 目标地址(自定义函数地址) - 指令地址(原函数地址) - <span class="number">5</span></span><br></pre></td></tr></table></figure>
+
+<p>注意在我们自定义的函数执行完毕后，如果还需要执行原函数，需要先运行替换的原5个字节指令，<br>再跳转回原函数中。获取 <code>NtTerminateProcess</code> 函数地址的方法这里不再专门说明</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">ULONG NtTerminateProcessNextCodeAddr = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">__declspec(naked) <span class="function"><span class="keyword">void</span> <span class="title">NakeNtTerminateProcess</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    _asm &#123;</span><br><span class="line">        mov eax, [esp + <span class="number">8</span>];</span><br><span class="line">        push eax;</span><br><span class="line">        mov eax, [esp + <span class="number">8</span>];</span><br><span class="line">        push eax;</span><br><span class="line">        call ProxyNtTerminateProcess;</span><br><span class="line">        add esp, <span class="number">8</span>;</span><br><span class="line">        test eax, eax;</span><br><span class="line">        je oricode;</span><br><span class="line">        ret;</span><br><span class="line">    oricode:</span><br><span class="line">        nop;</span><br><span class="line">        nop;</span><br><span class="line">        nop;</span><br><span class="line">        nop;</span><br><span class="line">        nop;</span><br><span class="line">        jmp NtTerminateProcessNextCodeAddr;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">ProxyNtTerminateProcess</span><span class="params">(HANDLE ProcessHandle, NTSTATUS ExitStatus)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 检查参数</span></span><br><span class="line">        <span class="keyword">if</span> (ProcessHandle == <span class="literal">NULL</span>) <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">if</span> (ProcessHandle == (HANDLE)<span class="number">-1</span>) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 本次操作对应的进程</span></span><br><span class="line">        PsGetCurrentProcessId();</span><br><span class="line">        <span class="comment">// 使用ZwQueryInformationProcess查询进程名</span></span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">            <span class="keyword">return</span> STATUS_ACCESS_DENIED; <span class="comment">// 拦截操作</span></span><br><span class="line">    &#125; <span class="keyword">while</span> (<span class="number">0</span>);</span><br><span class="line">    <span class="comment">// 返回成功跳转回原函数</span></span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如下为HOOK操作函数，如果要卸载HOOK就是把替换的5个字节指令恢复回去，这里不再专门说明。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 函数NakeNtTerminateProcess对应的机器码</span></span><br><span class="line"><span class="number">00</span>D613D0 <span class="number">8B</span> <span class="number">44</span> <span class="number">24</span> <span class="number">08</span>          mov     eax,dword ptr [esp+<span class="number">8</span>]</span><br><span class="line"><span class="number">00</span>D613D4 <span class="number">50</span>                   push    eax</span><br><span class="line"><span class="number">00</span>D613D5 <span class="number">8B</span> <span class="number">44</span> <span class="number">24</span> <span class="number">08</span>          mov     eax,dword ptr [esp+<span class="number">8</span>]</span><br><span class="line"><span class="number">00</span>D613D9 <span class="number">50</span>                   push    eax</span><br><span class="line"><span class="number">00</span>D613DA E8 <span class="number">39</span> <span class="function">FD FF FF       call    <span class="title">ProxyNtTerminateProcess</span> <span class="params">(<span class="number">0</span>D61118h)</span></span></span><br><span class="line">00D613DF 83 C4 08             add     esp,8</span><br><span class="line"><span class="number">00</span>D613E2 <span class="number">85</span> C0                test    eax,eax</span><br><span class="line"><span class="number">00</span>D613E4 <span class="number">74</span> <span class="number">01</span>                <span class="function">je      <span class="title">oricode</span> <span class="params">(<span class="number">0</span>D613E7h)</span></span></span><br><span class="line"><span class="function">00D613E6 C3                   ret</span></span><br><span class="line"><span class="function">oricode:</span></span><br><span class="line"><span class="function">00D613E7 90                   nop</span></span><br><span class="line"><span class="function">00D613E8 90                   nop</span></span><br><span class="line"><span class="function">00D613E9 90                   nop</span></span><br><span class="line"><span class="function">00D613EA 90                   nop</span></span><br><span class="line"><span class="function">00D613EB 90                   nop</span></span><br><span class="line">00D613EC FF 25 30 81 D6 00    jmp     dword ptr ds:[0D68130h]</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">InlineHook</span><span class="params">(IN PVOID FuncAddr, IN PVOID NakeAddr, OUT PULONG NextCodeAddr)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 指令NOP地址为23个字节的偏移</span></span><br><span class="line">    PULONG NopAddr = (PULONG)((ULONG)NakeAddr + <span class="number">23</span>);</span><br><span class="line">    <span class="keyword">if</span> (*NopAddr != <span class="number">0x90909090</span>) <span class="keyword">return</span>;</span><br><span class="line">    <span class="comment">// 保存返回地址</span></span><br><span class="line">    *NextCodeAddr = (ULONG)FuncAddr + <span class="number">5</span>;</span><br><span class="line">    WPOff(); <span class="comment">// 关闭内存写保护</span></span><br><span class="line">    <span class="comment">// 保存原代码</span></span><br><span class="line">    *(PUCHAR)NopAddr = *(PUCHAR)FuncAddr;</span><br><span class="line">    *(PULONG)((PUCHAR)NopAddr + <span class="number">1</span>) = *(PULONG)((PUCHAR)FuncAddr + <span class="number">1</span>);</span><br><span class="line">    <span class="comment">// 写入跳转指令</span></span><br><span class="line">    *(PUCHAR)FuncAddr = <span class="number">0xE9</span>;</span><br><span class="line">    *(PULONG)((PUCHAR)FuncAddr + <span class="number">1</span>) = (ULONG)NakeAddr - (ULONG)FuncAddr - <span class="number">5</span>;</span><br><span class="line">    WPOn(); <span class="comment">// 打开内存写保护</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>有些情况下，要HOOK的函数开头不是正好5个字节的指令，就需要我们内置一个反汇编引擎，反汇编<br>目标函数，至少找到5个字节的空间。比如7个字节的指令，仍然是相同的操作，先保存这7个字节的指令<br>到 <code>Nake函数</code> 预置的 <code>0x90</code> 中，然后保存下一条指令的地址，最后写入跳转指令，多余的空间写入 <code>0x90</code></p>
+<p>可以使用开源的minhook引擎：<a target="_blank" rel="noopener" href="https://github.com/TsudaKageyu/minhook">https://github.com/TsudaKageyu/minhook</a></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" rel="tag"># 攻防保护</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/07/30/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E7%9A%84%E5%85%B3%E9%94%AE%E4%BF%A1%E6%81%AF%E6%9F%A5%E8%AF%A2-1/" rel="prev" title="操作系统的关键信息查询(1)">
+                  <i class="fa fa-chevron-left"></i> 操作系统的关键信息查询(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/08/05/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/%E5%87%BD%E6%95%B0%E7%9A%84%E8%B0%83%E7%94%A8%E7%BA%A6%E5%AE%9A%E4%BB%8B%E7%BB%8D-1/" rel="next" title="函数的调用约定介绍(1)">
+                  函数的调用约定介绍(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

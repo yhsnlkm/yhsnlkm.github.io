@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="查询描述符 USB驱动对外提供了一系列用来查询描述符的控制码，所有控制码在 usbioctl.h 头文件中定义。  从结构上来说，所有的USB设备起始于 根控制器(Host Controller)，然">
+<meta property="og:type" content="article">
+<meta property="og:title" content="应用层遍历所有接入的USB设备(2)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/08/15/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-2/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="查询描述符 USB驱动对外提供了一系列用来查询描述符的控制码，所有控制码在 usbioctl.h 头文件中定义。  从结构上来说，所有的USB设备起始于 根控制器(Host Controller)，然">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2019/08/15/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-2/01.png">
+<meta property="article:published_time" content="2019-08-15T01:51:53.000Z">
+<meta property="article:modified_time" content="2019-08-15T08:23:11.229Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="USB相关">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2019/08/15/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-2/01.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/08/15/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-2/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>应用层遍历所有接入的USB设备(2) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E8%AF%A2%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">1.</span> <span class="nav-text">查询描述符</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9F%A5%E8%AF%A2%E7%9A%84%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">查询的流程</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/08/15/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          应用层遍历所有接入的USB设备(2)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+      
+
+      <time title="创建时间：2019-08-15 09:51:53 / 修改时间：16:23:11" itemprop="dateCreated datePublished" datetime="2019-08-15T09:51:53+08:00">2019-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/USB%E7%9B%B8%E5%85%B3/" itemprop="url" rel="index"><span itemprop="name">USB相关</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="查询描述符"><a href="#查询描述符" class="headerlink" title="查询描述符"></a>查询描述符</h4><p>USB驱动对外提供了一系列用来查询描述符的控制码，所有控制码在 <code>usbioctl.h</code> 头文件中定义。</p>
+<p>从结构上来说，所有的USB设备起始于 <code>根控制器(Host Controller)</code>，然后下边挂接 <code>HUB</code> 进行扩展，<br>整体是一个树形结构。<code>根控制器</code> 可以同时存在多个，但一般情况下只有一个 <code>根控制器</code>，每个 <code>根控制器</code><br>对外提供的访问名称为 <code>&quot;\\.\HCDx&quot;</code> ，x为数字，比如第一个 <code>根控制器</code> 为 <code>&quot;\\.\HCD0&quot;</code>。</p>
+<h4 id="查询的流程"><a href="#查询的流程" class="headerlink" title="查询的流程"></a>查询的流程</h4><p>工作流程：<br>1、从 <code>根控制器</code> 开始，查询 <code>RootHub</code> 名称，然后打开 <code>RootHub</code> 设备。<br>2、查询 <code>RootHub</code> 设备 <code>端口</code> 的数量，查询每个 <code>端口</code> 连接的设备信息。<br>3、如果 <code>端口</code> 连接的是 <code>扩展Hub</code> 设备，跟 <code>RootHub</code> 一样查询并打开设备。<br>4、如果 <code>端口</code> 连接的不是Hub设备，就可以查询这个设备的所有信息。</p>
+<p><img src="01.png" alt="工作流程"></p>
+<p>如下为相关代码</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 宏定义</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> HUBNAME_LEN 128</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> HUBNAME_LEN_WIDE 256</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">HUB_NAME</span> &#123;</span></span><br><span class="line">    WCHAR szNameW[HUBNAME_LEN];</span><br><span class="line">&#125; HUB_NAME, *PHUB_NAME;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">EnumHost</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 打开HCD0设备</span></span><br><span class="line">    HANDLE hHCDevice = CreateFileW(</span><br><span class="line">        <span class="string">L&quot;\\\\.\\HCD0&quot;</span>,</span><br><span class="line">        GENERIC_READ | GENERIC_WRITE,</span><br><span class="line">        FILE_SHARE_READ | FILE_SHARE_WRITE,</span><br><span class="line">        <span class="literal">NULL</span>, OPEN_EXISTING, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (hHCDevice == INVALID_HANDLE_VALUE) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 查询RootHub设备名</span></span><br><span class="line">    HUB_NAME stRootHub = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="comment">// 例如:\\.\USB#ROOT_HUB30#4&amp;5375334&amp;0&amp;0#&#123;f18a0e88-c30c-11d0-8815-00a0c906bed8&#125;</span></span><br><span class="line">    BOOL bRet = GetRootHubName(hHCDevice, stRootHub);</span><br><span class="line">    CloseHandle(hHCDevice); <span class="comment">// 先关句柄</span></span><br><span class="line">    <span class="keyword">if</span> (!bRet) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 遍历RootHub下的设备</span></span><br><span class="line">    <span class="keyword">if</span> (!EnumHub(stRootHub)) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">GetRootHubName</span><span class="params">(HANDLE hHCDevice, HUB_NAME &amp;stRootHub)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    DWORD dwSize = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">char</span> szBuffer[HUBNAME_LEN_WIDE] = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PUSB_ROOT_HUB_NAME pHubName = (PUSB_ROOT_HUB_NAME)szBuffer;</span><br><span class="line">    HUB_NAME stTemp = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="comment">// 获取连接到Host Controller的Root Hub名称</span></span><br><span class="line">    BOOL isSuccess = DeviceIoControl(</span><br><span class="line">        hHCDevice,</span><br><span class="line">        IOCTL_USB_GET_ROOT_HUB_NAME,</span><br><span class="line">        <span class="literal">NULL</span>, <span class="number">0</span>,</span><br><span class="line">        pHubName, HUBNAME_LEN_WIDE,</span><br><span class="line">        &amp;dwSize, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (!isSuccess) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">if</span> (pHubName-&gt;ActualLength &gt; HUBNAME_LEN_WIDE) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 拼接字符串</span></span><br><span class="line">    wcscpy_s(stRootHub.szwName, HUBNAME_LEN, <span class="string">L&quot;\\\\.\\&quot;</span>);</span><br><span class="line">    wcscat_s(stRootHub.szwName, HUBNAME_LEN, pHubName-&gt;RootHubName);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">EnumHub</span><span class="params">(HUB_NAME &amp;stHubName)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 尝试打开Hub设备</span></span><br><span class="line">    HANDLE hHubDevice = CreateFileW(</span><br><span class="line">        stHubName.szwName,</span><br><span class="line">        GENERIC_READ | GENERIC_WRITE,</span><br><span class="line">        FILE_SHARE_READ | FILE_SHARE_WRITE,</span><br><span class="line">        <span class="literal">NULL</span>, OPEN_EXISTING, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (hHubDevice == INVALID_HANDLE_VALUE) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 遍历Hub设备的节点信息，用来获取端口数量</span></span><br><span class="line">    ULONG nSize = <span class="number">0</span>;</span><br><span class="line">    USB_NODE_INFORMATION stHubInfo = &#123; UsbHub &#125;;</span><br><span class="line">    BOOL isSuccess = DeviceIoControl(</span><br><span class="line">        hHubDevice,</span><br><span class="line">        IOCTL_USB_GET_NODE_INFORMATION,</span><br><span class="line">        &amp;stHubInfo, <span class="keyword">sizeof</span>(USB_NODE_INFORMATION),</span><br><span class="line">        &amp;stHubInfo, <span class="keyword">sizeof</span>(USB_NODE_INFORMATION),</span><br><span class="line">        &amp;nSize, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (!isSuccess)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseHandle(hHubDevice);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 检索Hub的所有端口内容</span></span><br><span class="line">    isSuccess = EnumHubPorts(hHubDevice,</span><br><span class="line">        stHubInfo.u.HubInformation.HubDescriptor.bNumberOfPorts);</span><br><span class="line">    CloseHandle(hHubDevice);</span><br><span class="line">    <span class="keyword">return</span> isSuccess;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">EnumHubPorts</span><span class="params">(HANDLE hHubDevice, UCHAR nNumPorts)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 申请连接节点信息的空间</span></span><br><span class="line">    DWORD dwSize = <span class="keyword">sizeof</span>(USB_NODE_CONNECTION_INFORMATION) +</span><br><span class="line">        <span class="keyword">sizeof</span>(USB_PIPE_INFO) * <span class="number">30</span>;</span><br><span class="line">    PUSB_NODE_CONNECTION_INFORMATION pConnInfo =</span><br><span class="line">        (PUSB_NODE_CONNECTION_INFORMATION)<span class="built_in">malloc</span>(dwSize);</span><br><span class="line">    <span class="keyword">if</span> (pConnInfo == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 循环检索端口，端口从1开始，没有0端口</span></span><br><span class="line">    BOOL isSuccess = FALSE;</span><br><span class="line">    HUB_NAME stExtHub = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PUSB_DESCRIPTOR_REQUEST pDescRequest = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">for</span> (UCHAR i = <span class="number">1</span>; i &lt;= nNumPorts; i++)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="built_in">memset</span>(pConnInfo, <span class="number">0</span>, dwSize);</span><br><span class="line">        pConnInfo-&gt;ConnectionIndex = i;</span><br><span class="line">        <span class="comment">// 获取对应端口连接设备的信息</span></span><br><span class="line">        isSuccess = DeviceIoControl(</span><br><span class="line">            hHubDevice,</span><br><span class="line">            IOCTL_USB_GET_NODE_CONNECTION_INFORMATION,</span><br><span class="line">            pConnInfo, dwSize,</span><br><span class="line">            pConnInfo, dwSize,</span><br><span class="line">            &amp;dwSize, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="comment">// 访问失败，进入下次循环</span></span><br><span class="line">        <span class="keyword">if</span> (!isSuccess) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">// 端口未连接设备，进入下次循环</span></span><br><span class="line">        <span class="keyword">if</span> (pConnInfo-&gt;ConnectionStatus != DeviceConnected) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">// 如果端口连接的是HUB</span></span><br><span class="line">        <span class="keyword">if</span> (pConnInfo-&gt;DeviceIsHub)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="built_in">memset</span>(&amp;stExtHub, <span class="number">0</span>, <span class="keyword">sizeof</span>(HUB_NAME));</span><br><span class="line">            <span class="keyword">if</span> (GetExtHubName(hHubDevice, i, stExtHub))</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="comment">// 遍历扩展Hub下的设备</span></span><br><span class="line">                EnumHub(stExtHub);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//////////////////////////////////////////////////////</span></span><br><span class="line">        <span class="comment">// 设备描述符信息</span></span><br><span class="line">        pConnInfo-&gt;DeviceDescriptor;</span><br><span class="line">        <span class="comment">//////////////////////////////////////////////////////</span></span><br><span class="line">        <span class="comment">// 获取配置描述符信息</span></span><br><span class="line">        pDescRequest = GetConfigDescriptor(hHubDevice, i);</span><br><span class="line">        <span class="keyword">if</span> (pDescRequest == <span class="literal">NULL</span>) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">//////////////////////////////////////////////////////</span></span><br><span class="line">        <span class="comment">// 配置描述符中包含接口描述符</span></span><br><span class="line">        GetInterfaceDescriptor(pDescRequest);</span><br><span class="line">        <span class="built_in">free</span>(pDescRequest);</span><br><span class="line">        <span class="comment">//////////////////////////////////////////////////////</span></span><br><span class="line">        <span class="comment">// 获取字符串描述符描述信息</span></span><br><span class="line">        GetStringDescriptor(hHubDevice, i, pConnInfo);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 遍历完毕</span></span><br><span class="line">    <span class="built_in">free</span>(pConnInfo);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">GetExtHubName</span><span class="params">(HANDLE hHubDevice, UCHAR bPortIndex, HUB_NAME &amp;stExtHub)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 设置访问的端口</span></span><br><span class="line">    <span class="keyword">char</span> szBuffer[HUBNAME_LEN_WIDE] = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PUSB_NODE_CONNECTION_NAME pNodeName = (PUSB_NODE_CONNECTION_NAME)szBuffer;</span><br><span class="line">    pNodeName-&gt;ConnectionIndex = bPortIndex;</span><br><span class="line">    <span class="comment">// 获取扩展Hub名称</span></span><br><span class="line">    ULONG dwSize = <span class="number">0</span>;</span><br><span class="line">    BOOL isSuccess = DeviceIoControl(</span><br><span class="line">        hHubDevice,</span><br><span class="line">        IOCTL_USB_GET_NODE_CONNECTION_NAME,</span><br><span class="line">        pNodeName, HUBNAME_LEN_WIDE,</span><br><span class="line">        pNodeName, HUBNAME_LEN_WIDE,</span><br><span class="line">        &amp;dwSize, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (!isSuccess) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">if</span> (pNodeName-&gt;ActualLength &gt; HUBNAME_LEN_WIDE) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 拼接字符串</span></span><br><span class="line">    wcscpy_s(stExtHub.szwName, HUBNAME_LEN, <span class="string">L&quot;\\\\.\\&quot;</span>);</span><br><span class="line">    wcscat_s(stExtHub.szwName, HUBNAME_LEN, pNodeName-&gt;NodeName);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PUSB_DESCRIPTOR_REQUEST <span class="title">GetConfigDescriptor</span><span class="params">(HANDLE hHubDevice, UCHAR bPortIndex)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 构造第1次发送的请求内容</span></span><br><span class="line">    UCHAR bBuffer[<span class="keyword">sizeof</span>(USB_DESCRIPTOR_REQUEST) +</span><br><span class="line">        <span class="keyword">sizeof</span>(USB_CONFIGURATION_DESCRIPTOR)] = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    PUSB_DESCRIPTOR_REQUEST pDescReq = (PUSB_DESCRIPTOR_REQUEST)bBuffer;</span><br><span class="line">    <span class="comment">// 当前HUB下访问的端口索引</span></span><br><span class="line">    pDescReq-&gt;ConnectionIndex = bPortIndex;</span><br><span class="line">    <span class="comment">// USBD will automatically initialize these fields:</span></span><br><span class="line">    <span class="comment">//     bmRequest = 0x80</span></span><br><span class="line">    <span class="comment">//     bRequest  = 0x06</span></span><br><span class="line">    <span class="comment">// We must inititialize these fields:</span></span><br><span class="line">    <span class="comment">//     wValue    = Descriptor Type (high) and Descriptor Index (low byte)</span></span><br><span class="line">    <span class="comment">//     wIndex    = Zero (or Language ID for String Descriptors)</span></span><br><span class="line">    <span class="comment">//     wLength   = Length of descriptor buffer</span></span><br><span class="line">    pDescReq-&gt;SetupPacket.wValue = (USB_CONFIGURATION_DESCRIPTOR_TYPE &lt;&lt; <span class="number">8</span>) | <span class="number">0</span>;</span><br><span class="line">    pDescReq-&gt;SetupPacket.wLength = <span class="keyword">sizeof</span>(USB_CONFIGURATION_DESCRIPTOR);</span><br><span class="line">    <span class="comment">// 第1次发送请求获取实际的长度</span></span><br><span class="line">    DWORD dwSize = <span class="number">0</span>;</span><br><span class="line">    BOOL isSuccess = DeviceIoControl(</span><br><span class="line">        hHubDevice,</span><br><span class="line">        IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION,</span><br><span class="line">        pDescReq, <span class="keyword">sizeof</span>(bBuffer),</span><br><span class="line">        pDescReq, <span class="keyword">sizeof</span>(bBuffer),</span><br><span class="line">        &amp;dwSize, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="comment">// 获取失败则返回</span></span><br><span class="line">    <span class="keyword">if</span> (!isSuccess) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 构造第2次发送的请求内容</span></span><br><span class="line">    PUSB_CONFIGURATION_DESCRIPTOR pConfigDesc =</span><br><span class="line">        (PUSB_CONFIGURATION_DESCRIPTOR)(pDescReq + <span class="number">1</span>);</span><br><span class="line">    dwSize = <span class="keyword">sizeof</span>(USB_DESCRIPTOR_REQUEST) + pConfigDesc-&gt;wTotalLength;</span><br><span class="line">    <span class="comment">// 申请实际需要的内存空间</span></span><br><span class="line">    pDescReq = (PUSB_DESCRIPTOR_REQUEST)<span class="built_in">malloc</span>(dwSize);</span><br><span class="line">    <span class="keyword">if</span> (pDescReq == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="built_in">memset</span>(pDescReq, <span class="number">0</span>, dwSize);</span><br><span class="line">    <span class="comment">// 当前HUB下访问的端口索引</span></span><br><span class="line">    pDescReq-&gt;ConnectionIndex = bPortIndex;</span><br><span class="line">    <span class="comment">// USBD will automatically initialize these fields:</span></span><br><span class="line">    <span class="comment">//     bmRequest = 0x80</span></span><br><span class="line">    <span class="comment">//     bRequest  = 0x06</span></span><br><span class="line">    <span class="comment">// We must inititialize these fields:</span></span><br><span class="line">    <span class="comment">//     wValue    = Descriptor Type (high) and Descriptor Index (low byte)</span></span><br><span class="line">    <span class="comment">//     wIndex    = Zero (or Language ID for String Descriptors)</span></span><br><span class="line">    <span class="comment">//     wLength   = Length of descriptor buffer</span></span><br><span class="line">    pDescReq-&gt;SetupPacket.wValue = (USB_CONFIGURATION_DESCRIPTOR_TYPE &lt;&lt; <span class="number">8</span>) | <span class="number">0</span>;</span><br><span class="line">    pDescReq-&gt;SetupPacket.wLength = pConfigDesc-&gt;wTotalLength;</span><br><span class="line">    <span class="comment">// 第2次发送请求获取实际的内容</span></span><br><span class="line">    isSuccess = DeviceIoControl(</span><br><span class="line">        hHubDevice,</span><br><span class="line">        IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION,</span><br><span class="line">        pDescReq, dwSize,</span><br><span class="line">        pDescReq, dwSize,</span><br><span class="line">        &amp;dwSize, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="comment">// 获取失败则返回</span></span><br><span class="line">    <span class="keyword">if</span> (!isSuccess)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="built_in">free</span>(pDescReq);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> pDescReq;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PUSB_INTERFACE_DESCRIPTOR <span class="title">GetInterfaceDescriptor</span><span class="params">(PUSB_DESCRIPTOR_REQUEST pDescReq)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 初始化数据</span></span><br><span class="line">    PUSB_CONFIGURATION_DESCRIPTOR pConfigDesc =</span><br><span class="line">        PUSB_CONFIGURATION_DESCRIPTOR(pDescReq + <span class="number">1</span>);</span><br><span class="line">    PUCHAR pDescEnd = (PUCHAR)pConfigDesc + pConfigDesc-&gt;wTotalLength;</span><br><span class="line">    PUSB_COMMON_DESCRIPTOR pCommonDesc = (PUSB_COMMON_DESCRIPTOR)pConfigDesc;</span><br><span class="line">    <span class="comment">// 循环获取Interface Descriptor信息</span></span><br><span class="line">    <span class="keyword">while</span> (((PUCHAR)pCommonDesc + <span class="keyword">sizeof</span>(USB_COMMON_DESCRIPTOR) &lt; pDescEnd)</span><br><span class="line">        &amp;&amp; ((PUCHAR)pCommonDesc + pCommonDesc-&gt;bLength &lt;= pDescEnd))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (pCommonDesc-&gt;bDescriptorType == USB_INTERFACE_DESCRIPTOR_TYPE)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 目前只获取第1个（默认）接口信息</span></span><br><span class="line">            <span class="keyword">return</span> (PUSB_INTERFACE_DESCRIPTOR)pCommonDesc;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 下一个描述信息</span></span><br><span class="line">        pCommonDesc = (PUSB_COMMON_DESCRIPTOR)</span><br><span class="line">            ((PUCHAR)pCommonDesc + pCommonDesc-&gt;bLength);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">GetAllStringDescriptor</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN HANDLE hHubDevice, IN UCHAR  bPortIndex,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PUSB_NODE_CONNECTION_INFORMATION pConnInfo)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 获取String Descriptor的语言列表</span></span><br><span class="line">    PUSB_DESCRIPTOR_REQUEST pLangReq =</span><br><span class="line">        GetStringDescriptor(hHubDevice, bPortIndex, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (pLangReq == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 语言ID的处理(语言ID是USHORT大小)</span></span><br><span class="line">    PUSB_STRING_DESCRIPTOR pStringLang =</span><br><span class="line">        (PUSB_STRING_DESCRIPTOR)(pLangReq + <span class="number">1</span>);</span><br><span class="line">    <span class="comment">// 检测语言信息长度</span></span><br><span class="line">    <span class="keyword">if</span> (pStringLang-&gt;bLength &lt; <span class="keyword">sizeof</span>(USB_STRING_DESCRIPTOR))</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    USHORT numLanguageIDs = (pStringLang-&gt;bLength -</span><br><span class="line">        <span class="keyword">sizeof</span>(USB_STRING_DESCRIPTOR) + <span class="keyword">sizeof</span>(WCHAR)) / <span class="number">2</span>;</span><br><span class="line">    PUSHORT pLanguageIDs = (PUSHORT)&amp;pStringLang-&gt;bString[<span class="number">0</span>];</span><br><span class="line">    <span class="comment">// 根据语言列表获取描述信息(这里只获取第1个)</span></span><br><span class="line">    PUSB_DESCRIPTOR_REQUEST pDescReq = <span class="literal">NULL</span>;</span><br><span class="line">    PUSB_STRING_DESCRIPTOR  pStringDesc = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 获取序列号信息</span></span><br><span class="line">    <span class="keyword">if</span> (pConnInfo-&gt;DeviceDescriptor.iSerialNumber != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        pDescReq = GetStringDescriptor(</span><br><span class="line">            hHubDevice, bPortIndex,</span><br><span class="line">            pConnInfo-&gt;DeviceDescriptor.iSerialNumber,</span><br><span class="line">            pLanguageIDs[<span class="number">0</span>]);</span><br><span class="line">        <span class="keyword">if</span> (pDescReq != <span class="literal">NULL</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 跳过描述请求的头部</span></span><br><span class="line">            pStringDesc = (PUSB_STRING_DESCRIPTOR)(pDescReq + <span class="number">1</span>);</span><br><span class="line">            <span class="comment">// ……</span></span><br><span class="line">            <span class="built_in">free</span>(pDescReq);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="built_in">free</span>(pLangReq);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PUSB_DESCRIPTOR_REQUEST <span class="title">GetStringDescriptor</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    HANDLE hHubDevice, UCHAR  bPortIndex,</span></span></span><br><span class="line"><span class="function"><span class="params">    UCHAR  bDescIndex, USHORT wLanguageID)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 构造发送的请求内容</span></span><br><span class="line">    DWORD dwSize = <span class="keyword">sizeof</span>(USB_DESCRIPTOR_REQUEST) + <span class="number">256</span>;</span><br><span class="line">    PUSB_DESCRIPTOR_REQUEST pDescReq = (PUSB_DESCRIPTOR_REQUEST)<span class="built_in">malloc</span>(dwSize);</span><br><span class="line">    <span class="keyword">if</span> (pDescReq == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="built_in">memset</span>(pDescReq, <span class="number">0</span>, dwSize);</span><br><span class="line">    <span class="comment">// 当前HUB下访问的端口索引</span></span><br><span class="line">    pDescReq-&gt;ConnectionIndex = bPortIndex;</span><br><span class="line">    <span class="comment">// USBD will automatically initialize these fields:</span></span><br><span class="line">    <span class="comment">//     bmRequest = 0x80</span></span><br><span class="line">    <span class="comment">//     bRequest  = 0x06</span></span><br><span class="line">    <span class="comment">// We must inititialize these fields:</span></span><br><span class="line">    <span class="comment">//     wValue    = Descriptor Type (high) and Descriptor Index (low byte)</span></span><br><span class="line">    <span class="comment">//     wIndex    = Zero (or Language ID for String Descriptors)</span></span><br><span class="line">    <span class="comment">//     wLength   = Length of descriptor buffer</span></span><br><span class="line">    pDescReq-&gt;SetupPacket.wValue = (USB_STRING_DESCRIPTOR_TYPE &lt;&lt; <span class="number">8</span>) | bDescIndex;</span><br><span class="line">    pDescReq-&gt;SetupPacket.wIndex = wLanguageID;</span><br><span class="line">    pDescReq-&gt;SetupPacket.wLength = <span class="number">256</span>;</span><br><span class="line">    <span class="comment">// 获取连接设备的描述信息</span></span><br><span class="line">    BOOL isSuccess = DeviceIoControl(</span><br><span class="line">        hHubDevice,</span><br><span class="line">        IOCTL_USB_GET_DESCRIPTOR_FROM_NODE_CONNECTION,</span><br><span class="line">        pDescReq, dwSize,</span><br><span class="line">        pDescReq, dwSize,</span><br><span class="line">        &amp;dwSize, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="comment">// 获取失败则返回</span></span><br><span class="line">    <span class="keyword">if</span> (!isSuccess)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="built_in">free</span>(pDescReq);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> pDescReq;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/USB%E7%9B%B8%E5%85%B3/" rel="tag"># USB相关</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/08/14/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-1/" rel="prev" title="应用层遍历所有接入的USB设备(1)">
+                  <i class="fa fa-chevron-left"></i> 应用层遍历所有接入的USB设备(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/08/16/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E7%A6%81%E6%AD%A2USB%E5%AD%98%E5%82%A8%E8%AE%BE%E5%A4%87%E5%86%99%E5%85%A5%E5%8A%9F%E8%83%BD-1/" rel="next" title="应用层禁止USB存储设备写入功能(1)">
+                  应用层禁止USB存储设备写入功能(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

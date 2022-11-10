@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 在很多情况下，我们需要获取某进程所加载的DLL信息，以及DLL中的导出函数地址， 这里参照 Blackbone 的部分代码进行修改：https:&#x2F;&#x2F;github.com&#x2F;DarthTon&#x2F;Bla">
+<meta property="og:type" content="article">
+<meta property="og:title" content="在内核中获取进程的DLL和导出函数(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2021/03/08/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E8%8E%B7%E5%8F%96%E8%BF%9B%E7%A8%8B%E7%9A%84DLL%E5%92%8C%E5%AF%BC%E5%87%BA%E5%87%BD%E6%95%B0-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 在很多情况下，我们需要获取某进程所加载的DLL信息，以及DLL中的导出函数地址， 这里参照 Blackbone 的部分代码进行修改：https:&#x2F;&#x2F;github.com&#x2F;DarthTon&#x2F;Bla">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2021-03-08T07:37:07.000Z">
+<meta property="article:modified_time" content="2022-07-28T06:54:08.623Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="攻防保护">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2021/03/08/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E8%8E%B7%E5%8F%96%E8%BF%9B%E7%A8%8B%E7%9A%84DLL%E5%92%8C%E5%AF%BC%E5%87%BA%E5%87%BD%E6%95%B0-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>在内核中获取进程的DLL和导出函数(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">工作原理</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-%E8%8E%B7%E5%8F%96%E8%BF%9B%E7%A8%8BID"><span class="nav-number">2.1.</span> <span class="nav-text">1.获取进程ID</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-%E8%8E%B7%E5%8F%96DLL%E5%9C%B0%E5%9D%80"><span class="nav-number">2.2.</span> <span class="nav-text">2.获取DLL地址</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-%E8%8E%B7%E5%8F%96%E5%AF%BC%E5%87%BA%E5%87%BD%E6%95%B0"><span class="nav-number">2.3.</span> <span class="nav-text">3.获取导出函数</span></a></li></ol></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2021/03/08/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%9C%A8%E5%86%85%E6%A0%B8%E4%B8%AD%E8%8E%B7%E5%8F%96%E8%BF%9B%E7%A8%8B%E7%9A%84DLL%E5%92%8C%E5%AF%BC%E5%87%BA%E5%87%BD%E6%95%B0-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          在内核中获取进程的DLL和导出函数(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2021-03-08 15:37:07" itemprop="dateCreated datePublished" datetime="2021-03-08T15:37:07+08:00">2021-03-08</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2022-07-28 14:54:08" itemprop="dateModified" datetime="2022-07-28T14:54:08+08:00">2022-07-28</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" itemprop="url" rel="index"><span itemprop="name">攻防保护</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>在很多情况下，我们需要获取某进程所加载的DLL信息，以及DLL中的导出函数地址，<br>这里参照 <code>Blackbone</code> 的部分代码进行修改：<a target="_blank" rel="noopener" href="https://github.com/DarthTon/Blackbone">https://github.com/DarthTon/Blackbone</a></p>
+<h4 id="工作原理"><a href="#工作原理" class="headerlink" title="工作原理"></a>工作原理</h4><h5 id="1-获取进程ID"><a href="#1-获取进程ID" class="headerlink" title="1.获取进程ID"></a>1.获取进程ID</h5><p>在驱动中遍历进程需要使用 <code>ZwQuerySystemInformation</code> 函数，指定其class参数为5<br><code>(SystemProcessesAndThreadsInformation)</code> 时，可以获取一个全部进程的快照链表</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS NTAPI <span class="title">ZwQuerySystemInformation</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG SystemInformationClass,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN OUT PVOID SystemInformation,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG SystemInformationLength,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PULONG ReturnLength OPTIONAL)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>对应快照链表的结构体如下所示，这里只定义出了一些关键参数名称</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">SYSTEM_PROCESS_INFO</span> &#123;</span></span><br><span class="line">    ULONG NextEntryOffset; <span class="comment">// 下个节点</span></span><br><span class="line">    ULONG NumberOfThreads;</span><br><span class="line">    UCHAR Reserved1[<span class="number">48</span>];</span><br><span class="line">    UNICODE_STRING ImageName; <span class="comment">// 进程名</span></span><br><span class="line">    KPRIORITY BasePriority;</span><br><span class="line">    HANDLE UniqueProcessId; <span class="comment">// 进程PID</span></span><br><span class="line">    PVOID Reserved2;</span><br><span class="line">    ULONG HandleCount;</span><br><span class="line">    ULONG SessionId;</span><br><span class="line">    PVOID Reserved3;</span><br><span class="line">    SIZE_T PeakVirtualSize;</span><br><span class="line">    SIZE_T VirtualSize;</span><br><span class="line">    ULONG Reserved4;</span><br><span class="line">    SIZE_T PeakWorkingSetSize;</span><br><span class="line">    SIZE_T WorkingSetSize;</span><br><span class="line">    PVOID Reserved5;</span><br><span class="line">    SIZE_T QuotaPagedPoolUsage;</span><br><span class="line">    PVOID Reserved6;</span><br><span class="line">    SIZE_T QuotaNonPagedPoolUsage;</span><br><span class="line">    SIZE_T PagefileUsage;</span><br><span class="line">    SIZE_T PeakPagefileUsage;</span><br><span class="line">    SIZE_T PrivatePageCount;</span><br><span class="line">    LARGE_INTEGER Reserved7[<span class="number">6</span>];</span><br><span class="line">&#125; SYSTEM_PROCESS_INFO, *PSYSTEM_PROCESS_INFO;</span><br></pre></td></tr></table></figure>
+
+<p>这里以 <code>explorer.exe</code> 进程为例，获取其PID信息</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">GetExplorerProcessId</span><span class="params">(OUT HANDLE *ProcessId)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    ULONG RetLen = <span class="number">0</span>;</span><br><span class="line">    PVOID Buffer = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    PSYSTEM_PROCESS_INFO ProcInfo = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 查询所有进程信息</span></span><br><span class="line">    <span class="keyword">if</span> (!ProcessId) <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="comment">// SystemProcessesAndThreadsInformation 5</span></span><br><span class="line">    Status = ZwQuerySystemInformation(<span class="number">5</span>, <span class="literal">NULL</span>, <span class="number">0</span>, &amp;RetLen);</span><br><span class="line">    <span class="keyword">if</span> (Status != STATUS_INFO_LENGTH_MISMATCH) <span class="keyword">return</span> Status;</span><br><span class="line">    Buffer = ExAllocatePool(NonPagedPoolNx, RetLen * <span class="number">2</span>);</span><br><span class="line">    <span class="keyword">if</span> (!Buffer) <span class="keyword">return</span> STATUS_INSUFFICIENT_RESOURCES;</span><br><span class="line">    Status = ZwQuerySystemInformation(<span class="number">5</span>, Buffer, RetLen * <span class="number">2</span>, &amp;RetLen);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        ExFreePool(Buffer);</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 循环遍历进程链表</span></span><br><span class="line">    Status = STATUS_UNSUCCESSFUL;</span><br><span class="line">    ProcInfo = (PSYSTEM_PROCESS_INFO)Buffer;</span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 因为explorer.exe不在会话0中</span></span><br><span class="line">        <span class="keyword">if</span> (ProcInfo-&gt;SessionId &amp;&amp; (ProcInfo-&gt;UniqueProcessId &gt; (HANDLE)<span class="number">4</span>))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">if</span> (ProcInfo-&gt;ImageName.Buffer &amp;&amp; ProcInfo-&gt;ImageName.Length)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="comment">// 对比进程名称</span></span><br><span class="line">                <span class="keyword">if</span> (!_wcsnicmp(ProcInfo-&gt;ImageName.Buffer,</span><br><span class="line">                    <span class="string">L&quot;explorer.exe&quot;</span>, ProcInfo-&gt;ImageName.Length / <span class="number">2</span>))</span><br><span class="line">                &#123;</span><br><span class="line">                    *ProcessId = ProcInfo-&gt;UniqueProcessId;</span><br><span class="line">                    Status = STATUS_SUCCESS;</span><br><span class="line">                    <span class="keyword">break</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!ProcInfo-&gt;NextEntryOffset) <span class="keyword">break</span>;</span><br><span class="line">        ProcInfo = (PSYSTEM_PROCESS_INFO)(</span><br><span class="line">            (PCHAR)ProcInfo + ProcInfo-&gt;NextEntryOffset);</span><br><span class="line">    &#125;</span><br><span class="line">    ExFreePool(Buffer);</span><br><span class="line">    <span class="keyword">return</span> Status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="2-获取DLL地址"><a href="#2-获取DLL地址" class="headerlink" title="2.获取DLL地址"></a>2.获取DLL地址</h5><p>进程所加载的DLL列表在 <code>PEB-&gt;LDR</code> 中保存，我们可以遍历LDR链表来查询DLL模块地址，<br>注意：在驱动中访问应用层地址，必须加 <code>try/except</code> 和 <code>ProbeForRead/Write</code> 来检测有效性</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 64位PEB相关结构体定义</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">PEB_LDR_DATA</span> &#123;</span></span><br><span class="line">    ULONG Length;</span><br><span class="line">    UCHAR Initialized;</span><br><span class="line">    PVOID SsHandle;</span><br><span class="line">    LIST_ENTRY InLoadOrderModuleList;</span><br><span class="line">    LIST_ENTRY InMemoryOrderModuleList;</span><br><span class="line">    LIST_ENTRY InInitializationOrderModuleList;</span><br><span class="line">&#125; PEB_LDR_DATA, *PPEB_LDR_DATA;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">LDR_DATA_TABLE_ENTRY</span> &#123;</span></span><br><span class="line">    LIST_ENTRY InLoadOrderLinks;</span><br><span class="line">    LIST_ENTRY InMemoryOrderLinks;</span><br><span class="line">    LIST_ENTRY InInitializationOrderLinks;</span><br><span class="line">    PVOID DllBase;</span><br><span class="line">    PVOID EntryPoint;</span><br><span class="line">    ULONG SizeOfImage;</span><br><span class="line">    UNICODE_STRING FullDllName;</span><br><span class="line">    UNICODE_STRING BaseDllName;</span><br><span class="line">    ULONG Flags;</span><br><span class="line">    USHORT LoadCount;</span><br><span class="line">    USHORT TlsIndex;</span><br><span class="line">    LIST_ENTRY HashLinks;</span><br><span class="line">    ULONG TimeDateStamp;</span><br><span class="line">&#125; LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">PEB</span> &#123;</span></span><br><span class="line">    UCHAR InheritedAddressSpace;</span><br><span class="line">    UCHAR ReadImageFileExecOptions;</span><br><span class="line">    UCHAR BeingDebugged;</span><br><span class="line">    UCHAR BitField;</span><br><span class="line">    PVOID Mutant;</span><br><span class="line">    PVOID ImageBaseAddress;</span><br><span class="line">    PPEB_LDR_DATA Ldr;</span><br><span class="line">    PVOID ProcessParameters;</span><br><span class="line">    PVOID SubSystemData;</span><br><span class="line">    PVOID ProcessHeap;</span><br><span class="line">    PVOID FastPebLock;</span><br><span class="line">    PVOID AtlThunkSListPtr;</span><br><span class="line">    PVOID IFEOKey;</span><br><span class="line">    PVOID CrossProcessFlags;</span><br><span class="line">    PVOID UserSharedInfoPtr;</span><br><span class="line">    ULONG SystemReserved;</span><br><span class="line">    ULONG AtlThunkSListPtr32;</span><br><span class="line">    PVOID ApiSetMap;</span><br><span class="line">&#125; PEB, *PPEB;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 32位PEB相关结构体定义</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">PEB_LDR_DATA32</span> &#123;</span></span><br><span class="line">    ULONG Length;</span><br><span class="line">    UCHAR Initialized;</span><br><span class="line">    ULONG SsHandle;</span><br><span class="line">    LIST_ENTRY32 InLoadOrderModuleList;</span><br><span class="line">    LIST_ENTRY32 InMemoryOrderModuleList;</span><br><span class="line">    LIST_ENTRY32 InInitializationOrderModuleList;</span><br><span class="line">&#125; PEB_LDR_DATA32, *PPEB_LDR_DATA32;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">LDR_DATA_TABLE_ENTRY32</span> &#123;</span></span><br><span class="line">    LIST_ENTRY32 InLoadOrderLinks;</span><br><span class="line">    LIST_ENTRY32 InMemoryOrderLinks;</span><br><span class="line">    LIST_ENTRY32 InInitializationOrderLinks;</span><br><span class="line">    ULONG DllBase;</span><br><span class="line">    ULONG EntryPoint;</span><br><span class="line">    ULONG SizeOfImage;</span><br><span class="line">    UNICODE_STRING32 FullDllName;</span><br><span class="line">    UNICODE_STRING32 BaseDllName;</span><br><span class="line">    ULONG Flags;</span><br><span class="line">    USHORT LoadCount;</span><br><span class="line">    USHORT TlsIndex;</span><br><span class="line">    LIST_ENTRY32 HashLinks;</span><br><span class="line">    ULONG TimeDateStamp;</span><br><span class="line">&#125; LDR_DATA_TABLE_ENTRY32, *PLDR_DATA_TABLE_ENTRY32;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">PEB32</span> &#123;</span></span><br><span class="line">    UCHAR InheritedAddressSpace;</span><br><span class="line">    UCHAR ReadImageFileExecOptions;</span><br><span class="line">    UCHAR BeingDebugged;</span><br><span class="line">    UCHAR BitField;</span><br><span class="line">    ULONG Mutant;</span><br><span class="line">    ULONG ImageBaseAddress;</span><br><span class="line">    ULONG Ldr;</span><br><span class="line">    ULONG ProcessParameters;</span><br><span class="line">    ULONG SubSystemData;</span><br><span class="line">    ULONG ProcessHeap;</span><br><span class="line">    ULONG FastPebLock;</span><br><span class="line">    ULONG AtlThunkSListPtr;</span><br><span class="line">    ULONG IFEOKey;</span><br><span class="line">    ULONG CrossProcessFlags;</span><br><span class="line">    ULONG UserSharedInfoPtr;</span><br><span class="line">    ULONG SystemReserved;</span><br><span class="line">    ULONG AtlThunkSListPtr32;</span><br><span class="line">    ULONG ApiSetMap;</span><br><span class="line">&#125; PEB32, *PPEB32;</span><br></pre></td></tr></table></figure>
+
+<p>需要用到的已导出但未文档化相关函数的声明</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSYSAPI BOOLEAN NTAPI <span class="title">PsIsProtectedProcess</span><span class="params">(IN PEPROCESS Process)</span></span>; <span class="comment">// 检测进程是否受保护</span></span><br><span class="line"><span class="function">NTSYSAPI PVOID NTAPI <span class="title">PsGetProcessPeb</span><span class="params">(IN PEPROCESS Process)</span></span>; <span class="comment">// 获取进程的PEB</span></span><br><span class="line"><span class="function">NTSYSAPI PVOID NTAPI <span class="title">PsGetProcessWow64Process</span><span class="params">(IN PEPROCESS Process)</span></span>; <span class="comment">// 获取WOW64进程的PEB</span></span><br></pre></td></tr></table></figure>
+
+<p>这里以获取 <code>explorer.exe</code> 程序的 <code>kernel32.dll</code> 模块地址为例，需要注意的是：<br>遍历某进程的模块，需要先 <code>KeStackAttachProcess</code> 到目标进程中，但是受保护的进程不能Attach，<br>访问 <code>PEB</code> 的成员信息，要使用 <code>__try&#123;&#125; __except(EXCEPTION_EXECUTE_HANDLER)&#123;&#125;</code> 来检测有效性</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PVOID <span class="title">GetKernel32Address</span><span class="params">(IN PEPROCESS Process, IN BOOLEAN IsWow64)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    LARGE_INTEGER Timeout = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    __try &#123;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> AMD64</span></span><br><span class="line">        <span class="keyword">if</span> (IsWow64)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 在64位进程中遍历WOW64模块</span></span><br><span class="line">            PLIST_ENTRY32 ListEntry32 = <span class="literal">NULL</span>;</span><br><span class="line">            PPEB_LDR_DATA32 PebLdrData32 = <span class="literal">NULL</span>;</span><br><span class="line">            PLDR_DATA_TABLE_ENTRY32 TableEntry32 = <span class="literal">NULL</span>;</span><br><span class="line">            PPEB32 Peb32 = (PPEB32)PsGetProcessWow64Process(Process);</span><br><span class="line">            <span class="keyword">if</span> (!Peb32) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">            <span class="comment">// 等待Ldr已初始化完毕</span></span><br><span class="line">            Timeout.QuadPart = <span class="number">-10L</span>L * <span class="number">1000</span> * <span class="number">250</span>; <span class="comment">// 250毫秒</span></span><br><span class="line">            <span class="keyword">for</span> (INT i = <span class="number">0</span>; (!Peb32-&gt;Ldr) &amp;&amp; (i &lt; <span class="number">10</span>); i++)</span><br><span class="line">                KeDelayExecutionThread(KernelMode, FALSE, &amp;Timeout);</span><br><span class="line">            <span class="keyword">if</span> (!Peb32-&gt;Ldr) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">            <span class="comment">// 遍历已加载模块列表(注意多线程竞争问题)</span></span><br><span class="line">            <span class="comment">// 在R3中是用快照的方式获取，其中使用的是临界区</span></span><br><span class="line">            PebLdrData32 = (PPEB_LDR_DATA32)Peb32-&gt;Ldr;</span><br><span class="line">            ListEntry32 = (PLIST_ENTRY32)PebLdrData32-&gt;InLoadOrderModuleList.Flink;</span><br><span class="line">            <span class="keyword">while</span> (ListEntry32 != &amp;PebLdrData32-&gt;InLoadOrderModuleList)</span><br><span class="line">            &#123;</span><br><span class="line">                TableEntry32 = CONTAINING_RECORD(</span><br><span class="line">                    ListEntry32, LDR_DATA_TABLE_ENTRY32, InLoadOrderLinks);</span><br><span class="line">                <span class="keyword">if</span> (TableEntry32-&gt;BaseDllName.Buffer &amp;&amp; TableEntry32-&gt;BaseDllName.Length)</span><br><span class="line">                &#123;</span><br><span class="line">                    <span class="comment">// 对比模块名称</span></span><br><span class="line">                    <span class="keyword">if</span> (!_wcsnicmp((PWCHAR)TableEntry32-&gt;BaseDllName.Buffer,</span><br><span class="line">                        <span class="string">L&quot;Kernel32.dll&quot;</span>, TableEntry32-&gt;BaseDllName.Length / <span class="number">2</span>))</span><br><span class="line">                    &#123;</span><br><span class="line">                        <span class="keyword">return</span> (PVOID)TableEntry32-&gt;DllBase;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                ListEntry32 = (PLIST_ENTRY32)ListEntry32-&gt;Flink;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">#endif</span><br><span class="line">            <span class="comment">// 获取进程的PEB信息</span></span><br><span class="line">            PLIST_ENTRY ListEntry = <span class="literal">NULL</span>;</span><br><span class="line">            PPEB_LDR_DATA PebLdrData = <span class="literal">NULL</span>;</span><br><span class="line">            PLDR_DATA_TABLE_ENTRY TableEntry = <span class="literal">NULL</span>;</span><br><span class="line">            PPEB Peb = PsGetProcessPeb(Process);</span><br><span class="line">            <span class="keyword">if</span> (!Peb) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifndef</span> AMD64</span></span><br><span class="line">            UNREFERENCED_PARAMETER(IsWow64);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">            <span class="comment">// 等待Ldr已初始化完毕</span></span><br><span class="line">            Timeout.QuadPart = <span class="number">-10L</span>L * <span class="number">1000</span> * <span class="number">250</span>; <span class="comment">// 250毫秒</span></span><br><span class="line">            <span class="keyword">for</span> (INT i = <span class="number">0</span>; (!Peb-&gt;Ldr) &amp;&amp; (i &lt; <span class="number">10</span>); i++)</span><br><span class="line">                KeDelayExecutionThread(KernelMode, FALSE, &amp;Timeout);</span><br><span class="line">            <span class="keyword">if</span> (!Peb-&gt;Ldr) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">            <span class="comment">// 遍历已加载模块列表(注意多线程竞争问题)</span></span><br><span class="line">            <span class="comment">// 在R3中是用快照的方式获取，其中使用的是临界区</span></span><br><span class="line">            PebLdrData = (PPEB_LDR_DATA)Peb-&gt;Ldr;</span><br><span class="line">            ListEntry = (PLIST_ENTRY)PebLdrData-&gt;InLoadOrderModuleList.Flink;</span><br><span class="line">            <span class="keyword">while</span> (ListEntry != &amp;PebLdrData-&gt;InLoadOrderModuleList)</span><br><span class="line">            &#123;</span><br><span class="line">                TableEntry = CONTAINING_RECORD(</span><br><span class="line">                    ListEntry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);</span><br><span class="line">                <span class="keyword">if</span> (TableEntry-&gt;BaseDllName.Buffer &amp;&amp; TableEntry-&gt;BaseDllName.Length)</span><br><span class="line">                &#123;</span><br><span class="line">                    <span class="comment">// 对比模块名称</span></span><br><span class="line">                    <span class="keyword">if</span> (!_wcsnicmp(TableEntry-&gt;BaseDllName.Buffer,</span><br><span class="line">                        <span class="string">L&quot;Kernel32.dll&quot;</span>, TableEntry-&gt;BaseDllName.Length / <span class="number">2</span>))</span><br><span class="line">                    &#123;</span><br><span class="line">                        <span class="keyword">return</span> (PVOID)TableEntry-&gt;DllBase;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                ListEntry = (PLIST_ENTRY)ListEntry-&gt;Flink;</span><br><span class="line">            &#125;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> AMD64</span></span><br><span class="line">        &#125;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    &#125;</span><br><span class="line">    __except (EXCEPTION_EXECUTE_HANDLER) &#123;&#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="3-获取导出函数"><a href="#3-获取导出函数" class="headerlink" title="3.获取导出函数"></a>3.获取导出函数</h5><p>获取导出表的信息需要解析PE文件结构，如下为相关定义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DOS_SIGN 0x5A4D     <span class="comment">// MZ</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_NT_SIGN 0x00004550  <span class="comment">// PE00</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_NT_OPT_HDR32_MAGIC 0x10B <span class="comment">// 32位PE</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_NT_OPT_HDR64_MAGIC 0x20B <span class="comment">// 64位PE</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_DOS_HDR</span> &#123;</span></span><br><span class="line">    USHORT e_magic;</span><br><span class="line">    USHORT e_cblp;</span><br><span class="line">    USHORT e_cp;</span><br><span class="line">    USHORT e_crlc;</span><br><span class="line">    USHORT e_cparhdr;</span><br><span class="line">    USHORT e_minalloc;</span><br><span class="line">    USHORT e_maxalloc;</span><br><span class="line">    USHORT e_ss;</span><br><span class="line">    USHORT e_sp;</span><br><span class="line">    USHORT e_csum;</span><br><span class="line">    USHORT e_ip;</span><br><span class="line">    USHORT e_cs;</span><br><span class="line">    USHORT e_lfarlc;</span><br><span class="line">    USHORT e_ovno;</span><br><span class="line">    USHORT e_res[<span class="number">4</span>];</span><br><span class="line">    USHORT e_oemid;</span><br><span class="line">    USHORT e_oeminfo;</span><br><span class="line">    USHORT e_res2[<span class="number">10</span>];</span><br><span class="line">    LONG e_lfanew;</span><br><span class="line">&#125; IMAGE_DOS_HDR, *PIMAGE_DOS_HDR;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_FILE_HDR</span> &#123;</span></span><br><span class="line">    USHORT Machine;</span><br><span class="line">    USHORT NumberOfSections;</span><br><span class="line">    ULONG TimeDateStamp;</span><br><span class="line">    ULONG PointerToSymbolTable;</span><br><span class="line">    ULONG NumberOfSymbols;</span><br><span class="line">    USHORT SizeOfOptionalHeader;</span><br><span class="line">    USHORT Characteristics;</span><br><span class="line">&#125; IMAGE_FILE_HDR, *PIMAGE_FILE_HDR;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_DATA_DIR</span> &#123;</span></span><br><span class="line">    ULONG VirtualAddress;</span><br><span class="line">    ULONG Size;</span><br><span class="line">&#125; IMAGE_DATA_DIR, *PIMAGE_DATA_DIR;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_OPT_HDR64</span> &#123;</span></span><br><span class="line">    USHORT Magic;</span><br><span class="line">    UCHAR MajorLinkerVersion;</span><br><span class="line">    UCHAR MinorLinkerVersion;</span><br><span class="line">    ULONG SizeOfCode;</span><br><span class="line">    ULONG SizeOfInitializedData;</span><br><span class="line">    ULONG SizeOfUninitializedData;</span><br><span class="line">    ULONG AddressOfEntryPoint;</span><br><span class="line">    ULONG BaseOfCode;</span><br><span class="line">    ULONGLONG ImageBase;</span><br><span class="line">    ULONG SectionAlignment;</span><br><span class="line">    ULONG FileAlignment;</span><br><span class="line">    USHORT MajorOperatingSystemVersion;</span><br><span class="line">    USHORT MinorOperatingSystemVersion;</span><br><span class="line">    USHORT MajorImageVersion;</span><br><span class="line">    USHORT MinorImageVersion;</span><br><span class="line">    USHORT MajorSubsystemVersion;</span><br><span class="line">    USHORT MinorSubsystemVersion;</span><br><span class="line">    ULONG Win32VersionValue;</span><br><span class="line">    ULONG SizeOfImage;</span><br><span class="line">    ULONG SizeOfHeaders;</span><br><span class="line">    ULONG CheckSum;</span><br><span class="line">    USHORT Subsystem;</span><br><span class="line">    USHORT DllCharacteristics;</span><br><span class="line">    ULONGLONG SizeOfStackReserve;</span><br><span class="line">    ULONGLONG SizeOfStackCommit;</span><br><span class="line">    ULONGLONG SizeOfHeapReserve;</span><br><span class="line">    ULONGLONG SizeOfHeapCommit;</span><br><span class="line">    ULONG LoaderFlags;</span><br><span class="line">    ULONG NumberOfRvaAndSizes;</span><br><span class="line">    IMAGE_DATA_DIR DataDirectory[<span class="number">16</span>];</span><br><span class="line">&#125; IMAGE_OPT_HDR64, *PIMAGE_OPT_HDR64;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_OPT_HDR32</span> &#123;</span></span><br><span class="line">    USHORT Magic;</span><br><span class="line">    UCHAR MajorLinkerVersion;</span><br><span class="line">    UCHAR MinorLinkerVersion;</span><br><span class="line">    ULONG SizeOfCode;</span><br><span class="line">    ULONG SizeOfInitializedData;</span><br><span class="line">    ULONG SizeOfUninitializedData;</span><br><span class="line">    ULONG AddressOfEntryPoint;</span><br><span class="line">    ULONG BaseOfCode;</span><br><span class="line">    ULONG BaseOfData;</span><br><span class="line">    ULONG ImageBase;</span><br><span class="line">    ULONG SectionAlignment;</span><br><span class="line">    ULONG FileAlignment;</span><br><span class="line">    USHORT MajorOperatingSystemVersion;</span><br><span class="line">    USHORT MinorOperatingSystemVersion;</span><br><span class="line">    USHORT MajorImageVersion;</span><br><span class="line">    USHORT MinorImageVersion;</span><br><span class="line">    USHORT MajorSubsystemVersion;</span><br><span class="line">    USHORT MinorSubsystemVersion;</span><br><span class="line">    ULONG Win32VersionValue;</span><br><span class="line">    ULONG SizeOfImage;</span><br><span class="line">    ULONG SizeOfHeaders;</span><br><span class="line">    ULONG CheckSum;</span><br><span class="line">    USHORT Subsystem;</span><br><span class="line">    USHORT DllCharacteristics;</span><br><span class="line">    ULONG SizeOfStackReserve;</span><br><span class="line">    ULONG SizeOfStackCommit;</span><br><span class="line">    ULONG SizeOfHeapReserve;</span><br><span class="line">    ULONG SizeOfHeapCommit;</span><br><span class="line">    ULONG LoaderFlags;</span><br><span class="line">    ULONG NumberOfRvaAndSizes;</span><br><span class="line">    IMAGE_DATA_DIR DataDirectory[<span class="number">16</span>];</span><br><span class="line">&#125; IMAGE_OPT_HDR32, *PIMAGE_OPT_HDR32;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_NT_HDR32</span> &#123;</span></span><br><span class="line">    ULONG Signature;</span><br><span class="line">    IMAGE_FILE_HDR FileHeader;</span><br><span class="line">    IMAGE_OPT_HDR32 OptHeader32;</span><br><span class="line">&#125; IMAGE_NT_HDR32, *PIMAGE_NT_HDR32;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_NT_HDR64</span> &#123;</span></span><br><span class="line">    ULONG Signature;</span><br><span class="line">    IMAGE_FILE_HDR FileHeader;</span><br><span class="line">    IMAGE_OPT_HDR64 OptHeader64;</span><br><span class="line">&#125; IMAGE_NT_HDR64, *PIMAGE_NT_HDR64;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_EXPORT_DIR</span> &#123;</span></span><br><span class="line">    ULONG Characteristics;</span><br><span class="line">    ULONG TimeDateStamp;</span><br><span class="line">    USHORT MajorVersion;</span><br><span class="line">    USHORT MinorVersion;</span><br><span class="line">    ULONG Name;</span><br><span class="line">    ULONG Base;</span><br><span class="line">    ULONG NumberOfFunctions;</span><br><span class="line">    ULONG NumberOfNames;</span><br><span class="line">    ULONG AddressOfFunctions;</span><br><span class="line">    ULONG AddressOfNames;</span><br><span class="line">    ULONG AddressOfNameOrdinals;</span><br><span class="line">&#125; IMAGE_EXPORT_DIR, *PIMAGE_EXPORT_DIR;</span><br><span class="line"></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_SECTION_HDR</span> &#123;</span></span><br><span class="line">    UCHAR Name[<span class="number">8</span>];</span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        ULONG PhysicalAddress;</span><br><span class="line">        ULONG VirtualSize;</span><br><span class="line">    &#125; Misc;</span><br><span class="line">    ULONG VirtualAddress;</span><br><span class="line">    ULONG SizeOfRawData;</span><br><span class="line">    ULONG PointerToRawData;</span><br><span class="line">    ULONG PointerToRelocations;</span><br><span class="line">    ULONG PointerToLinenumbers;</span><br><span class="line">    USHORT NumberOfRelocations;</span><br><span class="line">    USHORT NumberOfLinenumbers;</span><br><span class="line">    ULONG Characteristics;</span><br><span class="line">&#125; IMAGE_SECTION_HDR, *PIMAGE_SECTION_HDR;</span><br></pre></td></tr></table></figure>
+
+<p>这里以获取 <code>Kernel32.dll</code> 的 <code>WinExec</code> 函数地址为例，<br>注意：在访问不确定的地址时，一定要记得加 <code>__try</code> 异常处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PVOID <span class="title">GetExportFuncAddr</span><span class="params">(IN PVOID DllBase, IN PCSTR FuncName)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PULONG Ent = <span class="literal">NULL</span>; <span class="comment">// 名称表</span></span><br><span class="line">    PULONG Eat = <span class="literal">NULL</span>; <span class="comment">// 地址表</span></span><br><span class="line">    PUSHORT Eot = <span class="literal">NULL</span>; <span class="comment">// 序号表</span></span><br><span class="line">    PIMAGE_DOS_HDR DosHdr = <span class="literal">NULL</span>;</span><br><span class="line">    PIMAGE_NT_HDR32 NtHdr32 = <span class="literal">NULL</span>;</span><br><span class="line">    PIMAGE_NT_HDR64 NtHdr64 = <span class="literal">NULL</span>;</span><br><span class="line">    PIMAGE_EXPORT_DIR ExportDir = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检测参数是否有效</span></span><br><span class="line">    <span class="keyword">if</span> (!DllBase || !FuncName) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    __try &#123;</span><br><span class="line">        <span class="comment">// 检测DOS头是否匹配</span></span><br><span class="line">        DosHdr = (PIMAGE_DOS_HDR)DllBase;</span><br><span class="line">        <span class="keyword">if</span> (DosHdr-&gt;e_magic != IMAGE_DOS_SIGN) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">        <span class="comment">// 检测NT头是否匹配</span></span><br><span class="line">        NtHdr32 = (PIMAGE_NT_HDR32)((PUCHAR)DllBase + DosHdr-&gt;e_lfanew);</span><br><span class="line">        NtHdr64 = (PIMAGE_NT_HDR64)((PUCHAR)DllBase + DosHdr-&gt;e_lfanew);</span><br><span class="line">        <span class="keyword">if</span> (NtHdr32-&gt;Signature != IMAGE_NT_SIGN) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">        <span class="comment">// 检测是32位PE文件还是64位PE文件</span></span><br><span class="line">        <span class="keyword">if</span> (NtHdr32-&gt;OptHeader32.Magic == IMAGE_NT_OPT_HDR32_MAGIC)</span><br><span class="line">        &#123;</span><br><span class="line">            ExportDir = (PIMAGE_EXPORT_DIR)(NtHdr32-&gt;OptHeader32.</span><br><span class="line">                DataDirectory[<span class="number">0</span>].VirtualAddress + (ULONG_PTR)DllBase);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">            ExportDir = (PIMAGE_EXPORT_DIR)(NtHdr64-&gt;OptHeader64.</span><br><span class="line">                DataDirectory[<span class="number">0</span>].VirtualAddress + (ULONG_PTR)DllBase);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 获取导出表的相关信息</span></span><br><span class="line">        Eot = (PUSHORT)(ExportDir-&gt;AddressOfNameOrdinals + (ULONG_PTR)DllBase);</span><br><span class="line">        Ent = (PULONG)(ExportDir-&gt;AddressOfNames + (ULONG_PTR)DllBase);</span><br><span class="line">        Eat = (PULONG)(ExportDir-&gt;AddressOfFunctions + (ULONG_PTR)DllBase);</span><br><span class="line">        <span class="comment">// 对比名称表中的函数名是否匹配</span></span><br><span class="line">        <span class="keyword">for</span> (ULONG i = <span class="number">0</span>; i &lt; ExportDir-&gt;NumberOfNames; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 在序号表中相同的位置存储了地址表的索引</span></span><br><span class="line">            <span class="keyword">if</span> (!<span class="built_in">strcmp</span>((PCHAR)(Ent[i] + (ULONG_PTR)DllBase), FuncName))</span><br><span class="line">                <span class="keyword">return</span> (PVOID)(Eat[Eot[i]] + (ULONG_PTR)DllBase);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    __except (EXCEPTION_EXECUTE_HANDLER) &#123;&#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" rel="tag"># 攻防保护</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2021/03/04/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E5%8A%AB%E6%8C%81%E7%94%A8%E6%88%B7%E5%8F%8C%E5%87%BB%E7%9B%AE%E6%A0%87%E5%88%B0%E5%90%AF%E5%8A%A8%E7%9A%84%E6%B5%81%E7%A8%8B-1/" rel="prev" title="劫持用户双击目标到启动的流程(1)">
+                  <i class="fa fa-chevron-left"></i> 劫持用户双击目标到启动的流程(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2021/03/15/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E7%BB%95%E8%BF%87UAC%E8%BF%9B%E8%A1%8C%E6%8F%90%E6%9D%83%E6%93%8D%E4%BD%9C-1/" rel="next" title="绕过UAC进行提权操作(1)">
+                  绕过UAC进行提权操作(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

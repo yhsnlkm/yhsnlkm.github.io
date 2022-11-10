@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 USB技术是一个庞大而复杂的技术体系，需要常年的深入研究才能窥探其中的一角。我们这里先从相对简单 的入手点开始介绍，实现在应用层遍历所有USB接口上的设备。代码基于 WDK 中的 usbview">
+<meta property="og:type" content="article">
+<meta property="og:title" content="应用层遍历所有接入的USB设备(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/08/14/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 USB技术是一个庞大而复杂的技术体系，需要常年的深入研究才能窥探其中的一角。我们这里先从相对简单 的入手点开始介绍，实现在应用层遍历所有USB接口上的设备。代码基于 WDK 中的 usbview">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-08-14T07:52:49.000Z">
+<meta property="article:modified_time" content="2019-08-14T11:14:01.643Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="USB相关">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/08/14/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>应用层遍历所有接入的USB设备(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#USB%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">2.</span> <span class="nav-text">USB描述符</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%8F%8F%E8%BF%B0%E7%AC%A6%E7%9A%84%E5%88%86%E7%B1%BB"><span class="nav-number">3.</span> <span class="nav-text">描述符的分类</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%AE%BE%E5%A4%87%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">3.1.</span> <span class="nav-text">设备描述符</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">3.2.</span> <span class="nav-text">配置描述符</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AD%97%E7%AC%A6%E4%B8%B2%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">3.3.</span> <span class="nav-text">字符串描述符</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">3.4.</span> <span class="nav-text">接口描述符</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%AB%AF%E7%82%B9%E6%8F%8F%E8%BF%B0%E7%AC%A6"><span class="nav-number">3.5.</span> <span class="nav-text">端点描述符</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%BE%E5%A4%87%E7%B1%BB%E5%9E%8B%E7%9A%84%E7%A7%8D%E7%B1%BB"><span class="nav-number">4.</span> <span class="nav-text">设备类型的种类</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%AE%BE%E5%A4%87%E7%B1%BB%E5%88%ABbDeviceClass"><span class="nav-number">4.1.</span> <span class="nav-text">设备类别bDeviceClass</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%8E%A5%E5%8F%A3%E7%B1%BB%E5%88%ABbInterfaceClass"><span class="nav-number">4.2.</span> <span class="nav-text">接口类别bInterfaceClass</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%B1%BB%E5%88%AB%E7%9A%84%E4%BA%A4%E5%8F%89%E5%92%8C%E7%8B%AC%E4%BA%AB"><span class="nav-number">4.3.</span> <span class="nav-text">类别的交叉和独享</span></a></li></ol></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/08/14/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          应用层遍历所有接入的USB设备(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+      
+
+      <time title="创建时间：2019-08-14 15:52:49 / 修改时间：19:14:01" itemprop="dateCreated datePublished" datetime="2019-08-14T15:52:49+08:00">2019-08-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/USB%E7%9B%B8%E5%85%B3/" itemprop="url" rel="index"><span itemprop="name">USB相关</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>USB技术是一个庞大而复杂的技术体系，需要常年的深入研究才能窥探其中的一角。我们这里先从相对简单<br>的入手点开始介绍，实现在应用层遍历所有USB接口上的设备。代码基于 <code>WDK</code> 中的 <code>usbview</code> 来实现。</p>
+<h4 id="USB描述符"><a href="#USB描述符" class="headerlink" title="USB描述符"></a>USB描述符</h4><p>在开始动手之前，我们需要先了解一下USB描述符的概念。USB描述符本身是一组数据的结构体，用来<br>记录USB设备本身的信息，以及该设备可以用于什么功能。系统会根据这些描述，来加载相关的驱动。</p>
+<h4 id="描述符的分类"><a href="#描述符的分类" class="headerlink" title="描述符的分类"></a>描述符的分类</h4><p>共分为三大类：标准描述符、设备类描述符、厂商描述符。</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>描述符</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>标准描述符</td>
+<td>设备描述符（Device Descriptor)</td>
+<td>0x01</td>
+</tr>
+<tr>
+<td></td>
+<td>配置描述符（Configuration Descriptor）</td>
+<td>0x02</td>
+</tr>
+<tr>
+<td></td>
+<td>字符串描述符（String Descriptor）</td>
+<td>0x03</td>
+</tr>
+<tr>
+<td></td>
+<td>接口描述符（Interface Descriptor）</td>
+<td>0x04</td>
+</tr>
+<tr>
+<td></td>
+<td>端点描述符（EndPont Descriptor）</td>
+<td>0x05</td>
+</tr>
+<tr>
+<td>设备类描述符</td>
+<td>人机接口类描述符（HID）</td>
+<td>0x21</td>
+</tr>
+<tr>
+<td></td>
+<td>集线器类描述符（Hub Descriptor）</td>
+<td>0x29</td>
+</tr>
+<tr>
+<td>厂商描述符</td>
+<td></td>
+<td>0xFF</td>
+</tr>
+</tbody></table>
+<p>更详细的信息可以从USB标准的相关网站获取（<a target="_blank" rel="noopener" href="https://www.usb.org),这里只介绍部分信息./">https://www.usb.org），这里只介绍部分信息。</a></p>
+<h5 id="设备描述符"><a href="#设备描述符" class="headerlink" title="设备描述符"></a>设备描述符</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">USB_DEVICE_DESCRIPTOR</span> &#123;</span></span><br><span class="line">    UCHAR bLength;</span><br><span class="line">    UCHAR bDescriptorType;</span><br><span class="line">    USHORT bcdUSB;</span><br><span class="line">    UCHAR bDeviceClass;</span><br><span class="line">    UCHAR bDeviceSubClass;</span><br><span class="line">    UCHAR bDeviceProtocol;</span><br><span class="line">    UCHAR bMaxPacketSize0;</span><br><span class="line">    USHORT idVendor;</span><br><span class="line">    USHORT idProduct;</span><br><span class="line">    USHORT bcdDevice;</span><br><span class="line">    UCHAR iManufacturer;</span><br><span class="line">    UCHAR iProduct;</span><br><span class="line">    UCHAR iSerialNumber;</span><br><span class="line">    UCHAR bNumConfigurations;</span><br><span class="line">&#125; USB_DEVICE_DESCRIPTOR, *PUSB_DEVICE_DESCRIPTOR;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>bLength</td>
+<td>数字</td>
+<td>此描述符的字节数。</td>
+</tr>
+<tr>
+<td>bDecriptorType</td>
+<td>常量</td>
+<td>描述符类型（此处应为0x01，即设备描述符）。</td>
+</tr>
+<tr>
+<td>bcdUSB</td>
+<td>BCD码</td>
+<td>USB版本号（BCD码）。</td>
+</tr>
+<tr>
+<td>bDeviceClass</td>
+<td>设备类</td>
+<td>bDeviceClass = 0 时，表示设备类型使用接口描述符中定义<br />的类型，且各个接口独立工作。<br />bDeviceClass = 0xFF 时，表示设备类型是由厂商自定义的。<br />bDeviceClass = 1 ~ 0xFE 时，查表可得对应设备类值，<br />该设备在不同的接口上支持不同的类。且这些接口可能<br />不能独立工作。此值指出了这些接口集体的类定义。</td>
+</tr>
+<tr>
+<td>bDeviceSubClass</td>
+<td>设备子类</td>
+<td>这些码值的具体含义根据bDeviceClass 域来看。 <br/>如bDeviceClass 域为0，此域也须为0。 <br/>如bDeviceClass 域为0xFF，此域的所有值保留。</td>
+</tr>
+<tr>
+<td>bDeviceProtocol</td>
+<td>设备协议</td>
+<td>这些码的值视bDeviceClass 和 bDeviceSubClass 的值而定。 <br/>如果设备支持设备类相关的协议，此码标志了设备类的值。<br />如果此域的值为0，则此设备不支持设备类相关的协议，<br />然而，可能它的接口支持设备类相关的协议。<br />如果此域的值为0xFF，此设备使用厂商定义的协议。</td>
+</tr>
+<tr>
+<td>bMaxPacketSize0</td>
+<td>数字</td>
+<td>端点0的最大包大小（仅8,16,32,64为合法值）。</td>
+</tr>
+<tr>
+<td>idVendor</td>
+<td>ID</td>
+<td>厂商标志（由USB-IF组织赋值）。</td>
+</tr>
+<tr>
+<td>idProduct</td>
+<td>ID</td>
+<td>产品标志（由厂商赋值）。</td>
+</tr>
+<tr>
+<td>bcdDevice</td>
+<td>BCD码</td>
+<td>设备版本号（BCD 码）。</td>
+</tr>
+<tr>
+<td>iManufacturer</td>
+<td>索引</td>
+<td>描述厂商信息的字符串描述符的索引值。</td>
+</tr>
+<tr>
+<td>iProduct</td>
+<td>索引</td>
+<td>描述产品信息的字串描述符的索引值。</td>
+</tr>
+<tr>
+<td>iSerialNumber</td>
+<td>索引</td>
+<td>描述设备序列号信息的字串描述符的索引值。</td>
+</tr>
+<tr>
+<td>bNumConfigurations</td>
+<td>数字</td>
+<td>可能的配置描述符数目。</td>
+</tr>
+</tbody></table>
+<h5 id="配置描述符"><a href="#配置描述符" class="headerlink" title="配置描述符"></a>配置描述符</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">USB_CONFIGURATION_DESCRIPTOR</span> &#123;</span></span><br><span class="line">    UCHAR bLength;</span><br><span class="line">    UCHAR bDescriptorType;</span><br><span class="line">    USHORT wTotalLength;</span><br><span class="line">    UCHAR bNumInterfaces;</span><br><span class="line">    UCHAR bConfigurationValue;</span><br><span class="line">    UCHAR iConfiguration;</span><br><span class="line">    UCHAR bmAttributes;</span><br><span class="line">    UCHAR MaxPower;</span><br><span class="line">&#125; USB_CONFIGURATION_DESCRIPTOR, *PUSB_CONFIGURATION_DESCRIPTOR;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>bLength</td>
+<td>数字</td>
+<td>此描述表的字节数长度。</td>
+</tr>
+<tr>
+<td>bDescriptorType</td>
+<td>常量</td>
+<td>配置描述符类型（此处为0x02）。</td>
+</tr>
+<tr>
+<td>wTotalLength</td>
+<td>数字</td>
+<td>此配置信息的总长（包括配置，接口，端点和设备类及<br />厂商定义的描述符），即：将要返回的配置信息总长度。</td>
+</tr>
+<tr>
+<td>bNumInterfaces</td>
+<td>数字</td>
+<td>此配置所支持的接口个数。</td>
+</tr>
+<tr>
+<td>bConfigurationValue</td>
+<td>数字</td>
+<td>在 SetConfiguration() 请求中用作参数来选定此配置。</td>
+</tr>
+<tr>
+<td>iConfiguration</td>
+<td>索引</td>
+<td>描述此配置的字串描述符的索引。</td>
+</tr>
+<tr>
+<td>bmAttributes</td>
+<td>位图</td>
+<td>D7： 保留（设为1） <br/>D6： 自给电源 <br/>D5： 远程唤醒 <br/>D4 ~ D0：保留（设为1） <br/>一个既用总线电源又有自给电源的设备会在MaxPower域<br />指出需要从总线取的电量。并设置D6为1。运行时期的实际<br />电源模式可由GetStatus(DEVICE) 请求得到。</td>
+</tr>
+<tr>
+<td>MaxPower</td>
+<td>毫安</td>
+<td>在此配置下的总线电源耗费量。以 2mA 为一个单位。</td>
+</tr>
+</tbody></table>
+<h5 id="字符串描述符"><a href="#字符串描述符" class="headerlink" title="字符串描述符"></a>字符串描述符</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">USB_STRING_DESCRIPTOR</span> &#123;</span></span><br><span class="line">    UCHAR bLength;</span><br><span class="line">    UCHAR bDescriptorType;</span><br><span class="line">    WCHAR bString[<span class="number">1</span>];</span><br><span class="line">&#125; USB_STRING_DESCRIPTOR, *PUSB_STRING_DESCRIPTOR;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>bLength</td>
+<td>数字</td>
+<td>此描述表的字节数（bString域的数值N＋2）</td>
+</tr>
+<tr>
+<td>bDescriptorType</td>
+<td>常量</td>
+<td>字符串描述符类型（此处应为0x03）</td>
+</tr>
+<tr>
+<td>bString</td>
+<td>字符串</td>
+<td>宽字符字符串（WCHAR）类型</td>
+</tr>
+</tbody></table>
+<p><code>显示语言</code> 的字符串描述符与 <code>显示信息</code> 的字符串描述符的区别在于<code>bStrings</code>项的不同。<br>对于 <code>显示语言</code> 的字符串描述符来说 <code>bStrings</code> 项由多个 <code>wLANGID[n]</code> 数组元素组成，<br>每个 <code>wLANGID[n]</code> 是一个双字节的代表语言的ID值。一般都是 <code>英语(美国)0x0409</code>。<br>而对于显示信息的字符串描述符而言，<code>bStrings</code> 则是描述信息的一组 <code>UNICODE</code> 编码。</p>
+<h5 id="接口描述符"><a href="#接口描述符" class="headerlink" title="接口描述符"></a>接口描述符</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">USB_INTERFACE_DESCRIPTOR</span> &#123;</span></span><br><span class="line">    UCHAR bLength;</span><br><span class="line">    UCHAR bDescriptorType;</span><br><span class="line">    UCHAR bInterfaceNumber;</span><br><span class="line">    UCHAR bAlternateSetting;</span><br><span class="line">    UCHAR bNumEndpoints;</span><br><span class="line">    UCHAR bInterfaceClass;</span><br><span class="line">    UCHAR bInterfaceSubClass;</span><br><span class="line">    UCHAR bInterfaceProtocol;</span><br><span class="line">    UCHAR iInterface;</span><br><span class="line">&#125; USB_INTERFACE_DESCRIPTOR, *PUSB_INTERFACE_DESCRIPTOR;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>bLength</td>
+<td>数字</td>
+<td>接口描述符的字节数大小</td>
+</tr>
+<tr>
+<td>bDescriptorType</td>
+<td>常量</td>
+<td>接口描述符的类型编号</td>
+</tr>
+<tr>
+<td>bInterfaceNumber</td>
+<td>数字</td>
+<td>接口的编号</td>
+</tr>
+<tr>
+<td>bAlternateSetting</td>
+<td>数字</td>
+<td>可替换的接口描述符编号。实际就是接口的描述符的编号。</td>
+</tr>
+<tr>
+<td>bNumEndpoints</td>
+<td>数字</td>
+<td>该接口使用的端点数，不包括端点0</td>
+</tr>
+<tr>
+<td>bInterfaceClass</td>
+<td>接口类</td>
+<td>接口类，可以通过查表获知</td>
+</tr>
+<tr>
+<td>bInterfaceSubClass</td>
+<td>接口子类</td>
+<td>接口子类</td>
+</tr>
+<tr>
+<td>bInterfaceProtocol</td>
+<td>接口协议</td>
+<td>接口遵循的协议</td>
+</tr>
+<tr>
+<td>iInterface</td>
+<td>索引</td>
+<td>描述该接口的字符串索引值</td>
+</tr>
+</tbody></table>
+<h5 id="端点描述符"><a href="#端点描述符" class="headerlink" title="端点描述符"></a>端点描述符</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">USB_ENDPOINT_DESCRIPTOR</span> &#123;</span></span><br><span class="line">    UCHAR bLength;</span><br><span class="line">    UCHAR bDescriptorType;</span><br><span class="line">    UCHAR bEndpointAddress;</span><br><span class="line">    UCHAR bmAttributes;</span><br><span class="line">    USHORT wMaxPacketSize;</span><br><span class="line">    UCHAR bInterval;</span><br><span class="line">&#125; USB_ENDPOINT_DESCRIPTOR, *PUSB_ENDPOINT_DESCRIPTOR;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>bLength</td>
+<td>数字</td>
+<td>端点描述符字节数大小</td>
+</tr>
+<tr>
+<td>bDescriptorType</td>
+<td>常量</td>
+<td>端点描述符类型编号</td>
+</tr>
+<tr>
+<td>bEndpointAddress</td>
+<td>数字</td>
+<td>端点地址及输入输出属性</td>
+</tr>
+<tr>
+<td>bmAttributes</td>
+<td>位图</td>
+<td>端点的传输类型属性：0~1bit定义了传输类型<br />00=控制传输、01=同步传输、10=批量传输、11=中断传输。</td>
+</tr>
+<tr>
+<td>wMaxPacketSize</td>
+<td>数字</td>
+<td>端点收、发的最大包大小</td>
+</tr>
+<tr>
+<td>bInterval</td>
+<td>毫秒</td>
+<td>对周期性端点的访问间隔：同步传输，其值必须为1</td>
+</tr>
+</tbody></table>
+<h4 id="设备类型的种类"><a href="#设备类型的种类" class="headerlink" title="设备类型的种类"></a>设备类型的种类</h4><h5 id="设备类别bDeviceClass"><a href="#设备类别bDeviceClass" class="headerlink" title="设备类别bDeviceClass"></a>设备类别bDeviceClass</h5><table>
+<thead>
+<tr>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0x00</td>
+<td>使用接口描述符中提供的类别</td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>通信类（CDC）</td>
+</tr>
+<tr>
+<td>0x09</td>
+<td>集线器类</td>
+</tr>
+<tr>
+<td>0xDC</td>
+<td>用于诊断用途的设备类</td>
+</tr>
+<tr>
+<td>0xFE</td>
+<td>混杂类型设备类</td>
+</tr>
+<tr>
+<td>0xFF</td>
+<td>厂商定义的设备类</td>
+</tr>
+</tbody></table>
+<h5 id="接口类别bInterfaceClass"><a href="#接口类别bInterfaceClass" class="headerlink" title="接口类别bInterfaceClass"></a>接口类别bInterfaceClass</h5><table>
+<thead>
+<tr>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0x01</td>
+<td>音频类</td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>通信类（CDC）</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td>人机接口类（HID）</td>
+</tr>
+<tr>
+<td>0x05</td>
+<td>物理类</td>
+</tr>
+<tr>
+<td>0x06</td>
+<td>图像类</td>
+</tr>
+<tr>
+<td>0x07</td>
+<td>打印机类</td>
+</tr>
+<tr>
+<td>0x08</td>
+<td>大数据存储类</td>
+</tr>
+<tr>
+<td>0x09</td>
+<td>集线器类</td>
+</tr>
+<tr>
+<td>0x0A</td>
+<td>CDC数据类</td>
+</tr>
+<tr>
+<td>0x0B</td>
+<td>智能卡类</td>
+</tr>
+<tr>
+<td>0x0D</td>
+<td>安全类</td>
+</tr>
+<tr>
+<td>0x0E</td>
+<td>视频类</td>
+</tr>
+<tr>
+<td>0x0F</td>
+<td>个人医疗护理类</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>音频/视频设备类</td>
+</tr>
+<tr>
+<td>0xDC</td>
+<td>诊断设备类</td>
+</tr>
+<tr>
+<td>0xE0</td>
+<td>无线控制器类</td>
+</tr>
+<tr>
+<td>0xEF</td>
+<td>混杂设备类</td>
+</tr>
+<tr>
+<td>0xFE</td>
+<td>特定应用类（包括红外的桥接器等）</td>
+</tr>
+<tr>
+<td>0xFF</td>
+<td>厂商定义的设备</td>
+</tr>
+</tbody></table>
+<h5 id="类别的交叉和独享"><a href="#类别的交叉和独享" class="headerlink" title="类别的交叉和独享"></a>类别的交叉和独享</h5><table>
+<thead>
+<tr>
+<th>Base Class</th>
+<th>Usage</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0x00</td>
+<td>Device</td>
+<td>Use class information in the Interface Descriptors</td>
+</tr>
+<tr>
+<td>0x01</td>
+<td>Interface</td>
+<td>Audio</td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>Both</td>
+<td>Communications and CDC Control</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td>Interface</td>
+<td>HID (Human Interface Device)</td>
+</tr>
+<tr>
+<td>0x05</td>
+<td>Interface</td>
+<td>Physical</td>
+</tr>
+<tr>
+<td>0x06</td>
+<td>Interface</td>
+<td>Image</td>
+</tr>
+<tr>
+<td>0x07</td>
+<td>Interface</td>
+<td>Printer</td>
+</tr>
+<tr>
+<td>0x08</td>
+<td>Interface</td>
+<td>Mass Storage</td>
+</tr>
+<tr>
+<td>0x09</td>
+<td>Device</td>
+<td>Hub</td>
+</tr>
+<tr>
+<td>0x0A</td>
+<td>Interface</td>
+<td>CDC-Data</td>
+</tr>
+<tr>
+<td>0x0B</td>
+<td>Interface</td>
+<td>Smart Card</td>
+</tr>
+<tr>
+<td>0x0D</td>
+<td>Interface</td>
+<td>Content Security</td>
+</tr>
+<tr>
+<td>0x0E</td>
+<td>Interface</td>
+<td>Video</td>
+</tr>
+<tr>
+<td>0x0F</td>
+<td>Interface</td>
+<td>Personal Healthcare</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>Interface</td>
+<td>Audio/Video Devices</td>
+</tr>
+<tr>
+<td>0xDC</td>
+<td>Both</td>
+<td>Diagnostic Device</td>
+</tr>
+<tr>
+<td>0xE0</td>
+<td>Interface</td>
+<td>Wireless Controller</td>
+</tr>
+<tr>
+<td>0xEF</td>
+<td>Both</td>
+<td>Miscellaneous</td>
+</tr>
+<tr>
+<td>0xFE</td>
+<td>Interface</td>
+<td>Application Specific</td>
+</tr>
+<tr>
+<td>0xFF</td>
+<td>Both</td>
+<td>Vendor Specific</td>
+</tr>
+</tbody></table>
+<p>（此表也适用于标准命令Get_Descriptor中wValue域高字节的取值含义）</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/USB%E7%9B%B8%E5%85%B3/" rel="tag"># USB相关</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/08/14/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%9C%A8%E6%9C%8D%E5%8A%A1%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%90%AF%E5%8A%A8%E5%85%B6%E4%BB%96%E7%A8%8B%E5%BA%8F-1/" rel="prev" title="在服务程序中启动其他程序(1)">
+                  <i class="fa fa-chevron-left"></i> 在服务程序中启动其他程序(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/08/15/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-2/" rel="next" title="应用层遍历所有接入的USB设备(2)">
+                  应用层遍历所有接入的USB设备(2) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 PE（Portable Executable）格式，是微软Win32环境可执行文件（如exe、dll、sys等）的标准格式。 PE格式继承自COFF（Common Object File For">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PE文件格式解析(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 PE（Portable Executable）格式，是微软Win32环境可执行文件（如exe、dll、sys等）的标准格式。 PE格式继承自COFF（Common Object File For">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/02.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/01.png">
+<meta property="article:published_time" content="2020-01-06T07:30:11.000Z">
+<meta property="article:modified_time" content="2020-03-06T05:40:36.391Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="汇编语言">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/02.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>PE文件格式解析(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B7%E4%BD%93%E7%BB%93%E6%9E%84"><span class="nav-number">2.</span> <span class="nav-text">具体结构</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#DOS%E5%A4%B4%EF%BC%88DOS-HEADER%EF%BC%89"><span class="nav-number">2.1.</span> <span class="nav-text">DOS头（DOS_HEADER）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#PE%E5%A4%B4%EF%BC%88NT-HEADER%EF%BC%89"><span class="nav-number">2.2.</span> <span class="nav-text">PE头（NT_HEADER）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%89%A9%E5%B1%95%E5%A4%B4%EF%BC%88OPTIONAL-HEADER%EF%BC%89"><span class="nav-number">2.3.</span> <span class="nav-text">扩展头（OPTIONAL_HEADER）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%95%B0%E6%8D%AE%E7%9B%AE%E5%BD%95%E8%A1%A8%EF%BC%88DATA-DIRECTORY%EF%BC%89"><span class="nav-number">2.4.</span> <span class="nav-text">数据目录表（DATA_DIRECTORY）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%8A%82%E5%A4%B4%EF%BC%88SECTION-HEADER%EF%BC%89"><span class="nav-number">2.5.</span> <span class="nav-text">节头（SECTION_HEADER）</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%8A%82%E6%95%B0%E6%8D%AE%E5%AF%B9%E9%BD%90"><span class="nav-number">3.</span> <span class="nav-text">节数据对齐</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          PE文件格式解析(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2020-01-06 15:30:11" itemprop="dateCreated datePublished" datetime="2020-01-06T15:30:11+08:00">2020-01-06</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2020-03-06 13:40:36" itemprop="dateModified" datetime="2020-03-06T13:40:36+08:00">2020-03-06</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/" itemprop="url" rel="index"><span itemprop="name">汇编语言</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>PE（Portable Executable）格式，是微软Win32环境可执行文件（如exe、dll、sys等）的标准格式。<br>PE格式继承自COFF（Common Object File Format）文件格式。</p>
+<h4 id="具体结构"><a href="#具体结构" class="headerlink" title="具体结构"></a>具体结构</h4><p>具体的PE格式结构体在 <code>winnt.h</code> 头文件中有定义，格式分布如下图所示</p>
+<p><img src="02.png" alt="PE格式"></p>
+<h5 id="DOS头（DOS-HEADER）"><a href="#DOS头（DOS-HEADER）" class="headerlink" title="DOS头（DOS_HEADER）"></a>DOS头（DOS_HEADER）</h5><p>在PE文件最开始的位置，包含有DOS执行体的信息，当该程序在不支持 PE文件格式的操作系统中，它将<br>显示一个错误提示，大多数情况下它是由汇编器/编译器自动生成，即：简单调用中断21h服务来显示<br>字符串”This program cannot run in DOS mode”。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_DOS_HEADER</span> &#123;</span></span><br><span class="line">    WORD e_magic;    <span class="comment">// [0x00] Magic number // 0x5A4D</span></span><br><span class="line">    WORD e_cblp;     <span class="comment">// [0x02] Bytes on last page of file</span></span><br><span class="line">    WORD e_cp;       <span class="comment">// [0x04] Pages in file</span></span><br><span class="line">    WORD e_crlc;     <span class="comment">// [0x06] Relocations</span></span><br><span class="line">    WORD e_cparhdr;  <span class="comment">// [0x08] Size of header in paragraphs</span></span><br><span class="line">    WORD e_minalloc; <span class="comment">// [0x0A] Minimum extra paragraphs needed</span></span><br><span class="line">    WORD e_maxalloc; <span class="comment">// [0x0C] Maximum extra paragraphs needed</span></span><br><span class="line">    WORD e_ss;       <span class="comment">// [0x0E] Initial (relative) SS value</span></span><br><span class="line">    WORD e_sp;       <span class="comment">// [0x10] Initial SP value</span></span><br><span class="line">    WORD e_csum;     <span class="comment">// [0x12] Checksum</span></span><br><span class="line">    WORD e_ip;       <span class="comment">// [0x14] Initial IP value</span></span><br><span class="line">    WORD e_cs;       <span class="comment">// [0x16] Initial (relative) CS value</span></span><br><span class="line">    WORD e_lfarlc;   <span class="comment">// [0x18] File address of relocation table</span></span><br><span class="line">    WORD e_ovno;     <span class="comment">// [0x1A] Overlay number</span></span><br><span class="line">    WORD e_res[<span class="number">4</span>];   <span class="comment">// [0x1C] Reserved words</span></span><br><span class="line">    WORD e_oemid;    <span class="comment">// [0x24] OEM identifier (for e_oeminfo)</span></span><br><span class="line">    WORD e_oeminfo;  <span class="comment">// [0x26] OEM information; e_oemid specific</span></span><br><span class="line">    WORD e_res2[<span class="number">10</span>]; <span class="comment">// [0x28] Reserved words</span></span><br><span class="line">    LONG e_lfanew;   <span class="comment">// [0x3C] File address of new exe header</span></span><br><span class="line">&#125; IMAGE_DOS_HEADER, *PIMAGE_DOS_HEADER;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>DOS_HEADER</code> 中关键的信息有两处，其一是 <code>e_magic</code> 信息，必为 <code>0x5A4D</code> 值，其二是 <code>e_lfanew</code> 信息，<br>表示 <code>NT_HEADER</code> 的偏移位置。使用VS编译的EXE程序多数为 <code>0xF8</code> 值。</p>
+<p><img src="01.png" alt="标识信息"></p>
+<h5 id="PE头（NT-HEADER）"><a href="#PE头（NT-HEADER）" class="headerlink" title="PE头（NT_HEADER）"></a>PE头（NT_HEADER）</h5><p>在 <code>NT_HEADER</code> 中共包含三部分信息，其中 <code>Signature</code> 必为 <code>0x4550</code> 值，<code>FILE_HEADER</code> 在x86和x64系统中<br>大小是一样的，而 <code>OPTIONAL_HEADER</code> 则有一些细微的差别，如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 32位程序的NT_HEADERS</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_NT_HEADERS</span> &#123;</span></span><br><span class="line">    DWORD                   Signature;      <span class="comment">// [0x00] PE标识 // 0x4550</span></span><br><span class="line">    IMAGE_FILE_HEADER       FileHeader;     <span class="comment">// [0x04] 文件基本信息</span></span><br><span class="line">    IMAGE_OPTIONAL_HEADER32 OptionalHeader; <span class="comment">// [0x18] 文件扩展信息</span></span><br><span class="line">&#125; IMAGE_NT_HEADERS32, *PIMAGE_NT_HEADERS32;</span><br><span class="line"><span class="comment">// 64位程序的NT_HEADERS64</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_NT_HEADERS64</span> &#123;</span></span><br><span class="line">    DWORD                   Signature;      <span class="comment">// [0x00] PE标识 // 0x4550</span></span><br><span class="line">    IMAGE_FILE_HEADER       FileHeader;     <span class="comment">// [0x04] 文件基本信息</span></span><br><span class="line">    IMAGE_OPTIONAL_HEADER64 OptionalHeader; <span class="comment">// [0x18] 文件扩展信息</span></span><br><span class="line">&#125; IMAGE_NT_HEADERS64, *PIMAGE_NT_HEADERS64;</span><br></pre></td></tr></table></figure>
+
+<p><code>FILE_HEADER</code> 结构体如下，其中 <code>Machine</code> 的值，在x86平台是 <code>0x014C</code>，在x64平台是 <code>0x8664</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_FILE_HEADER</span> &#123;</span></span><br><span class="line">    WORD  Machine;              <span class="comment">// [0x04] 运行平台</span></span><br><span class="line">    WORD  NumberOfSections;     <span class="comment">// [0x06] 区段的数量</span></span><br><span class="line">    DWORD TimeDateStamp;        <span class="comment">// [0x08] 文件创建时间</span></span><br><span class="line">    DWORD PointerToSymbolTable; <span class="comment">// [0x0C] 符号表指针</span></span><br><span class="line">    DWORD NumberOfSymbols;      <span class="comment">// [0x10] 符号的数量</span></span><br><span class="line">    WORD  SizeOfOptionalHeader; <span class="comment">// [0x14] 扩展头大小</span></span><br><span class="line">    WORD  Characteristics;      <span class="comment">// [0x16] 文件属性</span></span><br><span class="line">&#125; IMAGE_FILE_HEADER, *PIMAGE_FILE_HEADER;</span><br></pre></td></tr></table></figure>
+
+<p>文件属性 <code>Characteristics</code> 的取值，在 <code>winnt.h</code> 中定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_RELOCS_STRIPPED         0x0001  <span class="comment">// 文件不包含重定位信息</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_EXECUTABLE_IMAGE        0x0002  <span class="comment">// 文件是可执行的</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_LINE_NUMS_STRIPPED      0x0004  <span class="comment">// 文件不包含行号信息</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_LOCAL_SYMS_STRIPPED     0x0008  <span class="comment">// 文件不包含符号信息</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_AGGRESIVE_WS_TRIM       0x0010  <span class="comment">// 强制裁剪工作组</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_LARGE_ADDRESS_AWARE     0x0020  <span class="comment">// 应用程序能够处理超过2GB的地址</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_BYTES_REVERSED_LO       0x0080  <span class="comment">// CPU的低字节是颠倒的</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_32BIT_MACHINE           0x0100  <span class="comment">// 文件运行于32位平台</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_DEBUG_STRIPPED          0x0200  <span class="comment">// 不包含.dbg调试信息</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP 0x0400  <span class="comment">// 从交换区中运行在移动介质中的文件</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_NET_RUN_FROM_SWAP       0x0800  <span class="comment">// 从交换区中运行在网络中的文件</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_SYSTEM                  0x1000  <span class="comment">// 系统文件</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_DLL                     0x2000  <span class="comment">// DLL(动态链接库)文件</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_UP_SYSTEM_ONLY          0x4000  <span class="comment">// 只能运行在单处理器(Uniprocessor)中</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_FILE_BYTES_REVERSED_HI       0x8000  <span class="comment">// CPU的低字节是颠倒的</span></span></span><br></pre></td></tr></table></figure>
+
+<h5 id="扩展头（OPTIONAL-HEADER）"><a href="#扩展头（OPTIONAL-HEADER）" class="headerlink" title="扩展头（OPTIONAL_HEADER）"></a>扩展头（OPTIONAL_HEADER）</h5><p>在x86平台下的 <code>OPTIONAL_HEADER32</code> 结构体</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_OPTIONAL_HEADER32</span> &#123;</span></span><br><span class="line">    <span class="comment">// 标准域</span></span><br><span class="line">    WORD  Magic;                              <span class="comment">// [0x18] 标志位 // 32位(0x10B)</span></span><br><span class="line">    BYTE  MajorLinkerVersion;                 <span class="comment">// [0x1A] 链接器主版本号</span></span><br><span class="line">    BYTE  MinorLinkerVersion;                 <span class="comment">// [0x1B] 链接器子版本号</span></span><br><span class="line">    DWORD SizeOfCode;                         <span class="comment">// [0x1C] 所有代码节的总大小</span></span><br><span class="line">    DWORD SizeOfInitializedData;              <span class="comment">// [0x20] 所有已初始化节总大小</span></span><br><span class="line">    DWORD SizeOfUninitializedData;            <span class="comment">// [0x24] 所有未初始化节总大小</span></span><br><span class="line">    DWORD AddressOfEntryPoint;                <span class="comment">// [0x28] 程序执行入口RVA</span></span><br><span class="line">    DWORD BaseOfCode;                         <span class="comment">// [0x2C] 代码节起始RVA</span></span><br><span class="line">    DWORD BaseOfData;                         <span class="comment">// [0x30] 数据节起始RVA</span></span><br><span class="line">    <span class="comment">// NT附加域                           </span></span><br><span class="line">    DWORD ImageBase;                          <span class="comment">// [0x34] 程序默认载入基地址 // 4字节</span></span><br><span class="line">    DWORD SectionAlignment;                   <span class="comment">// [0x38] 内存中的节对齐值</span></span><br><span class="line">    DWORD FileAlignment;                      <span class="comment">// [0x3C] 文件中的节对齐值</span></span><br><span class="line">    WORD  MajorOperatingSystemVersion;        <span class="comment">// [0x40] 系统主版本号</span></span><br><span class="line">    WORD  MinorOperatingSystemVersion;        <span class="comment">// [0x42] 系统子版本号</span></span><br><span class="line">    WORD  MajorImageVersion;                  <span class="comment">// [0x44] 映像主版本号</span></span><br><span class="line">    WORD  MinorImageVersion;                  <span class="comment">// [0x46] 映像子版本号</span></span><br><span class="line">    WORD  MajorSubsystemVersion;              <span class="comment">// [0x48] 子系统主版本号</span></span><br><span class="line">    WORD  MinorSubsystemVersion;              <span class="comment">// [0x4A] 子系统子版本号</span></span><br><span class="line">    DWORD Win32VersionValue;                  <span class="comment">// [0x4C] 保留，通常为0x00</span></span><br><span class="line">    DWORD SizeOfImage;                        <span class="comment">// [0x50] 内存中映像总大小</span></span><br><span class="line">    DWORD SizeOfHeaders;                      <span class="comment">// [0x54] 各个文件头的总大小</span></span><br><span class="line">    DWORD CheckSum;                           <span class="comment">// [0x58] 影像文件校验和</span></span><br><span class="line">    WORD  Subsystem;                          <span class="comment">// [0x5C] 文件子系统</span></span><br><span class="line">    WORD  DllCharacteristics;                 <span class="comment">// [0x5E] DLL标志位</span></span><br><span class="line">    DWORD SizeOfStackReserve;                 <span class="comment">// [0x60] 初始化预留栈大小 // 4字节</span></span><br><span class="line">    DWORD SizeOfStackCommit;                  <span class="comment">// [0x64] 初始化提交栈大小 // 4字节</span></span><br><span class="line">    DWORD SizeOfHeapReserve;                  <span class="comment">// [0x68] 初始化预留堆大小 // 4字节</span></span><br><span class="line">    DWORD SizeOfHeapCommit;                   <span class="comment">// [0x6C] 初始化提交堆大小 // 4字节</span></span><br><span class="line">    DWORD LoaderFlags;                        <span class="comment">// [0x70] 调试相关，默认0x00</span></span><br><span class="line">    DWORD NumberOfRvaAndSizes;                <span class="comment">// [0x74] 数据目录表的数量</span></span><br><span class="line">    IMAGE_DATA_DIRECTORY DataDirectory[<span class="number">0x10</span>]; <span class="comment">// [0x78] 数据目录表 // 通常为0x10个</span></span><br><span class="line">&#125; IMAGE_OPTIONAL_HEADER32, *PIMAGE_OPTIONAL_HEADER32;</span><br></pre></td></tr></table></figure>
+
+<p>在x64平台下的 <code>OPTIONAL_HEADER64</code> 结构体</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_OPTIONAL_HEADER64</span> &#123;</span></span><br><span class="line">    <span class="comment">// 标准域</span></span><br><span class="line">    WORD      Magic;                          <span class="comment">// [0x18] 标志位 // 64位(0x20B)</span></span><br><span class="line">    BYTE      MajorLinkerVersion;             <span class="comment">// [0x1A] 链接器主版本号</span></span><br><span class="line">    BYTE      MinorLinkerVersion;             <span class="comment">// [0x1B] 链接器子版本号</span></span><br><span class="line">    DWORD     SizeOfCode;                     <span class="comment">// [0x1C] 所有代码节的总大小</span></span><br><span class="line">    DWORD     SizeOfInitializedData;          <span class="comment">// [0x20] 所有已初始化节总大小</span></span><br><span class="line">    DWORD     SizeOfUninitializedData;        <span class="comment">// [0x24] 所有未初始化节总大小</span></span><br><span class="line">    DWORD     AddressOfEntryPoint;            <span class="comment">// [0x28] 程序执行入口RVA</span></span><br><span class="line">    DWORD     BaseOfCode;                     <span class="comment">// [0x2C] 代码节起始RVA</span></span><br><span class="line">    DWORD     BaseOfData;                     <span class="comment">// [0x30] 数据节起始RVA</span></span><br><span class="line">    <span class="comment">// NT附加域                           </span></span><br><span class="line">    ULONGLONG ImageBase;                      <span class="comment">// [0x34] 程序默认载入基地址 // 8字节</span></span><br><span class="line">    DWORD     SectionAlignment;               <span class="comment">// [0x3C] 内存中的节对齐值</span></span><br><span class="line">    DWORD     FileAlignment;                  <span class="comment">// [0x40] 文件中的节对齐值</span></span><br><span class="line">    WORD      MajorOperatingSystemVersion;    <span class="comment">// [0x44] 系统主版本号</span></span><br><span class="line">    WORD      MinorOperatingSystemVersion;    <span class="comment">// [0x46] 系统子版本号</span></span><br><span class="line">    WORD      MajorImageVersion;              <span class="comment">// [0x48] 映像主版本号</span></span><br><span class="line">    WORD      MinorImageVersion;              <span class="comment">// [0x4A] 映像子版本号</span></span><br><span class="line">    WORD      MajorSubsystemVersion;          <span class="comment">// [0x4C] 子系统主版本号</span></span><br><span class="line">    WORD      MinorSubsystemVersion;          <span class="comment">// [0x4E] 子系统子版本号</span></span><br><span class="line">    DWORD     Win32VersionValue;              <span class="comment">// [0x50] 保留，通常为0x00</span></span><br><span class="line">    DWORD     SizeOfImage;                    <span class="comment">// [0x54] 内存中映像总大小</span></span><br><span class="line">    DWORD     SizeOfHeaders;                  <span class="comment">// [0x58] 各个文件头的总大小</span></span><br><span class="line">    DWORD     CheckSum;                       <span class="comment">// [0x5C] 影像文件校验和</span></span><br><span class="line">    WORD      Subsystem;                      <span class="comment">// [0x60] 文件子系统</span></span><br><span class="line">    WORD      DllCharacteristics;             <span class="comment">// [0x62] DLL标志位</span></span><br><span class="line">    ULONGLONG SizeOfStackReserve;             <span class="comment">// [0x64] 初始化预留栈大小 // 8字节</span></span><br><span class="line">    ULONGLONG SizeOfStackCommit;              <span class="comment">// [0x6C] 初始化提交栈大小 // 8字节</span></span><br><span class="line">    ULONGLONG SizeOfHeapReserve;              <span class="comment">// [0x74] 初始化预留堆大小 // 8字节</span></span><br><span class="line">    ULONGLONG SizeOfHeapCommit;               <span class="comment">// [0x7C] 初始化提交堆大小 // 8字节</span></span><br><span class="line">    DWORD     LoaderFlags;                    <span class="comment">// [0x84] 调试相关，默认0x00</span></span><br><span class="line">    DWORD     NumberOfRvaAndSizes;            <span class="comment">// [0x88] 数据目录表的数量</span></span><br><span class="line">    IMAGE_DATA_DIRECTORY DataDirectory[<span class="number">0x10</span>]; <span class="comment">// [0x8C] 数据目录表 // 通常为0x10个</span></span><br><span class="line">&#125; IMAGE_OPTIONAL_HEADER64, *PIMAGE_OPTIONAL_HEADER64;</span><br></pre></td></tr></table></figure>
+
+<p>其中关于 <code>Subsystem</code> 的定义如下，表示该程序期望在什么环境下运行</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_UNKNOWN        0 <span class="comment">// Unknown subsystem</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_NATIVE         1 <span class="comment">// Image doesn&#x27;t require a subsystem</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_WINDOWS_GUI    2 <span class="comment">// Image runs in the Windows GUI subsystem</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_WINDOWS_CUI    3 <span class="comment">// Image runs in the Windows character subsystem</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_OS2_CUI        5 <span class="comment">// image runs in the OS/2 character subsystem</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_POSIX_CUI      7 <span class="comment">// image runs in the Posix character subsystem</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_NATIVE_WINDOWS 8 <span class="comment">// image is a native Win9x driver</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SUBSYSTEM_WINDOWS_CE_GUI 9 <span class="comment">// Image runs in the Windows CE subsystem</span></span></span><br></pre></td></tr></table></figure>
+
+<h5 id="数据目录表（DATA-DIRECTORY）"><a href="#数据目录表（DATA-DIRECTORY）" class="headerlink" title="数据目录表（DATA_DIRECTORY）"></a>数据目录表（DATA_DIRECTORY）</h5><p>在 <code>OPTIONAL_HEADER</code> 中存储着 <code>DATA_DIRECTORY</code> 信息，结构体如下，</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_DATA_DIRECTORY</span> &#123;</span></span><br><span class="line">    DWORD VirtualAddress; <span class="comment">// 虚拟地址</span></span><br><span class="line">    DWORD Size;           <span class="comment">// 大小</span></span><br><span class="line">&#125; IMAGE_DATA_DIRECTORY, *PIMAGE_DATA_DIRECTORY;</span><br></pre></td></tr></table></figure>
+
+<p>数据目录表通常是 <code>0x10</code> 个，实际数量由 <code>NumberOfRvaAndSizes</code> 指定，内容如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_EXPORT          0 <span class="comment">// Export Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_IMPORT          1 <span class="comment">// Import Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_RESOURCE        2 <span class="comment">// Resource Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_EXCEPTION       3 <span class="comment">// Exception Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_SECURITY        4 <span class="comment">// Security Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_BASERELOC       5 <span class="comment">// Base Relocation Table</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_DEBUG           6 <span class="comment">// Debug Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_ARCHITECTURE    7 <span class="comment">// Architecture Specific Data</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_GLOBALPTR       8 <span class="comment">// RVA of GP</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_TLS             9 <span class="comment">// TLS Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG    10 <span class="comment">// Load Configuration Directory</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT   11 <span class="comment">// Bound Import Directory in headers</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_IAT            12 <span class="comment">// Import Address Table</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT   13 <span class="comment">// Delay Load Import Descriptors</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR 14 <span class="comment">// COM Runtime descriptor</span></span></span><br></pre></td></tr></table></figure>
+
+<h5 id="节头（SECTION-HEADER）"><a href="#节头（SECTION-HEADER）" class="headerlink" title="节头（SECTION_HEADER）"></a>节头（SECTION_HEADER）</h5><p>在数据目录表的后边，就是用来描述每个节信息的 <code>SECTION_HEADER</code>，结构体如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_SECTION_HEADER</span> &#123;</span></span><br><span class="line">    BYTE  Name[<span class="number">0x08</span>];           <span class="comment">// 节名称</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        DWORD PhysicalAddress;</span><br><span class="line">        DWORD VirtualSize;</span><br><span class="line">    &#125; Misc;                     <span class="comment">// 节大小</span></span><br><span class="line">    DWORD VirtualAddress;       <span class="comment">// 节RVA地址</span></span><br><span class="line">    DWORD SizeOfRawData;        <span class="comment">// 文件中节对齐大小</span></span><br><span class="line">    DWORD PointerToRawData;     <span class="comment">// 节在文件中的偏移</span></span><br><span class="line">    DWORD PointerToRelocations; <span class="comment">// 重定位的偏移(用于OBJ文件)</span></span><br><span class="line">    DWORD PointerToLinenumbers; <span class="comment">// 行号表的偏移(用于调试)</span></span><br><span class="line">    WORD  NumberOfRelocations;  <span class="comment">// 重定位表的数量(用于OBJ文件)</span></span><br><span class="line">    WORD  NumberOfLinenumbers;  <span class="comment">// 行号表数量(用于调试)</span></span><br><span class="line">    DWORD Characteristics;      <span class="comment">// 节属性</span></span><br><span class="line">&#125; IMAGE_SECTION_HEADER, *PIMAGE_SECTION_HEADER;</span><br></pre></td></tr></table></figure>
+
+<p>节的属性 <code>Characteristics</code> 比较常见的定义如下，更多信息见 <code>winnt.h</code> 的定义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_CNT_CODE               0x00000020  <span class="comment">// 此节包含代码</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_CNT_INITIALIZED_DATA   0x00000040  <span class="comment">// 此节包含已初始化数据</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_CNT_UNINITIALIZED_DATA 0x00000080  <span class="comment">// 此节包含未初始化数据</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_LNK_INFO               0x00000200  <span class="comment">// 此节包含注释或其他类型信息</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_LNK_REMOVE             0x00000800  <span class="comment">// 此节不会成为映像的一部分</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_LNK_COMDAT             0x00001000  <span class="comment">// 此节包含COM数据</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_NO_DEFER_SPEC_EXC      0x00004000  <span class="comment">// 在此节的TLB项中重置异常控制位</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_GPREL                  0x00008000  <span class="comment">// 此节可以访问GP相关内容</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_LNK_NRELOC_OVFL        0x01000000  <span class="comment">// 此节包含扩展重定位信息</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_DISCARDABLE        0x02000000  <span class="comment">// 此节可以被丢弃(比如重定位.reloc节)</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_NOT_CACHED         0x04000000  <span class="comment">// 此节不可以缓存</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_NOT_PAGED          0x08000000  <span class="comment">// 此节不可以分页</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_SHARED             0x10000000  <span class="comment">// 此节是共享的</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_EXECUTE            0x20000000  <span class="comment">// 此节是可执行的</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_READ               0x40000000  <span class="comment">// 此节是可读的</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> IMAGE_SCN_MEM_WRITE              0x80000000  <span class="comment">// 此节是可写的</span></span></span><br></pre></td></tr></table></figure>
+
+<p>虽然每个节的名称可以随意定义，但是也有一些约定俗成的名称，如下</p>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>.text</td>
+<td>代码段，Borland C++编译器代码段为code</td>
+</tr>
+<tr>
+<td>.data</td>
+<td>可读写的数据段，存放全局变量或静态变量</td>
+</tr>
+<tr>
+<td>.rdata</td>
+<td>只读数据段，存放常量信息</td>
+</tr>
+<tr>
+<td>.idata</td>
+<td>导入数据段，存放导入表信息</td>
+</tr>
+<tr>
+<td>.edata</td>
+<td>导出数据段，存放导出表信息</td>
+</tr>
+<tr>
+<td>.rsrc</td>
+<td>资源段，存放图标、菜单等资源信息</td>
+</tr>
+<tr>
+<td>.bss</td>
+<td>未初始化数据段</td>
+</tr>
+<tr>
+<td>.crt</td>
+<td>存放用于支持C++运行时库(CRT)所添加的数据</td>
+</tr>
+<tr>
+<td>.tls</td>
+<td>存放用于支持通过_declspec(thread)声明的线程局部存储数据</td>
+</tr>
+<tr>
+<td>.reloc</td>
+<td>存放重定位信息</td>
+</tr>
+<tr>
+<td>.sdata</td>
+<td>存放可被全局指针定位的可读写数据</td>
+</tr>
+<tr>
+<td>.srdata</td>
+<td>存放可被全局指针定位的只读数据</td>
+</tr>
+<tr>
+<td>.pdata</td>
+<td>存放异常表，结构体为IMAGE_RUNTIME_FUNTCION_ENTRY</td>
+</tr>
+<tr>
+<td>.debug$S</td>
+<td>存放OBJ文件中Codeview格式符号</td>
+</tr>
+<tr>
+<td>.debug$T</td>
+<td>存放OBJ文件中Codeview格式类型符号</td>
+</tr>
+<tr>
+<td>.debug$P</td>
+<td>存放使用预编译头时的一些信息</td>
+</tr>
+<tr>
+<td>.drectve</td>
+<td>存放编译时的一些链接命令</td>
+</tr>
+<tr>
+<td>.didat</td>
+<td>存放延迟装入的数据</td>
+</tr>
+</tbody></table>
+<h4 id="节数据对齐"><a href="#节数据对齐" class="headerlink" title="节数据对齐"></a>节数据对齐</h4><p>节的对齐共有两种粒度，一种是在内存中对齐，由 <code>SectionAlignment</code> 参数决定，通常为 <code>0x1000</code> 值，<br>另一种是在文件中对齐，由 <code>FileAlignment</code> 参数决定，通常为 <code>0x200</code> 值。操作系统在加载映像时，<br>会依照内存对齐粒度的整数倍来分配空间。</p>
+<p>关于内存地址与文件地址之间的转换，我们需要先理解两个概念</p>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>虚拟内存地址（Virtual Address，VA）</td>
+<td>指PE文件被装入内存之后的地址</td>
+</tr>
+<tr>
+<td>相对虚拟地址（Relative Virtual Address，RVA）</td>
+<td>指相对于映像基址的内存地址偏移</td>
+</tr>
+</tbody></table>
+<p>计算方式为：<code>虚拟内存地址(VA) = 映像基址(Image Base) + 相对虚拟地址(RVA)</code></p>
+<p>以某代码段为例，虽然由于粒度的不同导致内存地址与文件地址有很大偏差，但是整个代码段的内容是不会变得，<br>所以某一段代码的地址相对于该代码段的起始地址是不变的，根据这一特点就可以进行地址换算。</p>
+<p>关系式为：<code>文件偏移地址 = 所在节的起始文件偏移 + (虚拟内存地址 - 映像基址 - 所在节的起始虚拟内存偏移)</code></p>
+<p>节头中的 <code>VirtualAddress</code> 表示该节的 <code>起始虚拟内存偏移</code>，<code>PointerToRawData</code> 表示该节的 <code>起始文件偏移</code>。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/" rel="tag"># 汇编语言</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/12/26/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E6%8B%A6%E6%88%AADLL%E7%9A%84%E5%8A%A0%E8%BD%BD-1/" rel="prev" title="使用MiniFilter拦截DLL的加载(1)">
+                  <i class="fa fa-chevron-left"></i> 使用MiniFilter拦截DLL的加载(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/" rel="next" title="使用MiniFilter与应用层通讯(1)">
+                  使用MiniFilter与应用层通讯(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

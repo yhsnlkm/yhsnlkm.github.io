@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="前言 在PE文件结构中，数据目录表对应的信息很重要，这里对其中几个常用的进行介绍。  资源表 资源表用来存储程序的各种界面数据，比如菜单、图标、版本信息等，其结构体如下  1 2 3 4 5 6 7">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PE文件格式解析(3)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="前言 在PE文件结构中，数据目录表对应的信息很重要，这里对其中几个常用的进行介绍。  资源表 资源表用来存储程序的各种界面数据，比如菜单、图标、版本信息等，其结构体如下  1 2 3 4 5 6 7">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/01.png">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/02.png">
+<meta property="article:published_time" content="2020-01-15T07:42:03.000Z">
+<meta property="article:modified_time" content="2021-04-27T02:15:08.232Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="汇编语言">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/01.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>PE文件格式解析(3) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B5%84%E6%BA%90%E8%A1%A8"><span class="nav-number">2.</span> <span class="nav-text">资源表</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%87%8D%E5%AE%9A%E4%BD%8D%E8%A1%A8"><span class="nav-number">3.</span> <span class="nav-text">重定位表</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2020/01/15/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          PE文件格式解析(3)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2020-01-15 15:42:03" itemprop="dateCreated datePublished" datetime="2020-01-15T15:42:03+08:00">2020-01-15</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-04-27 10:15:08" itemprop="dateModified" datetime="2021-04-27T10:15:08+08:00">2021-04-27</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/" itemprop="url" rel="index"><span itemprop="name">汇编语言</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>在PE文件结构中，数据目录表对应的信息很重要，这里对其中几个常用的进行介绍。</p>
+<h4 id="资源表"><a href="#资源表" class="headerlink" title="资源表"></a>资源表</h4><p>资源表用来存储程序的各种界面数据，比如菜单、图标、版本信息等，其结构体如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_RESOURCE_DIRECTORY</span> &#123;</span></span><br><span class="line">    DWORD Characteristics;      <span class="comment">// 资源属性标识，通常为0x00000000</span></span><br><span class="line">    DWORD TimeDateStamp;        <span class="comment">// 资源建立的时间</span></span><br><span class="line">    WORD  MajorVersion;         <span class="comment">// 资源主版本，通常为0x0004</span></span><br><span class="line">    WORD  MinorVersion;         <span class="comment">// 资源子版本，通常为0x0000</span></span><br><span class="line">    WORD  NumberOfNamedEntries; <span class="comment">// 资源名称条目个数</span></span><br><span class="line">    WORD  NumberOfIdEntries;    <span class="comment">// 资源ID条目个数</span></span><br><span class="line">&#125; IMAGE_RESOURCE_DIRECTORY, *PIMAGE_RESOURCE_DIRECTORY;</span><br></pre></td></tr></table></figure>
+
+<p>资源在PE文件中是以目录结构的形式存在的，一般情况下这个目录分3层，从根目录开始分别为资源类型、<br>目录资源ID、资源代码页。每层的头部是一个 <code>IMAGE_RESOURCE_DIRECTORY</code> 结构，并且在其后面跟着一个<br><code>IMAGE_RESOURCE_DIRECTORY_ENTRY</code> 结构数组，然后结构数组的每个成员则分别指向下一层目录结构。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_RESOURCE_DIRECTORY_ENTRY</span> &#123;</span></span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">            DWORD NameOffset : <span class="number">31</span>;        <span class="comment">// 资源名偏移</span></span><br><span class="line">            DWORD NameIsString : <span class="number">1</span>;       <span class="comment">// 资源名为字符串</span></span><br><span class="line">        &#125;;</span><br><span class="line">        DWORD Name;                       <span class="comment">// 资源/语言类型</span></span><br><span class="line">        WORD  Id;                         <span class="comment">// 资源数字ID</span></span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        DWORD OffsetToData;               <span class="comment">// 数据偏移地址</span></span><br><span class="line">        <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">            DWORD OffsetToDirectory : <span class="number">31</span>; <span class="comment">// 子目录偏移地址</span></span><br><span class="line">            DWORD DataIsDirectory : <span class="number">1</span>;    <span class="comment">// 数据为目录</span></span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;;</span><br><span class="line">&#125; IMAGE_RESOURCE_DIRECTORY_ENTRY, *PIMAGE_RESOURCE_DIRECTORY_ENTRY;</span><br></pre></td></tr></table></figure>
+
+<p>第一个联合体的信息，是根据当前结构体所处的目录层次来决定的，位于 <code>第1层</code> 目录时 <code>Name</code> 有效，保存的<br>信息是 <code>资源类型</code>。位于 <code>第2层</code> 目录时 <code>Id</code> 或 <code>结构体</code> 有效，取决于此资源的 <code>索引方式</code>，如果用的是 <code>编号索引</code><br>就是 <code>Id</code> 有效，否则 <code>结构体</code> 有效。位于 <code>第3层</code> 目录时 <code>Name</code> 有效，保存的信息是 <code>语言类型</code>。</p>
+<p>第二个联合体的信息，理论上是根据具体情况而定的，如果下级是一个 <code>子目录</code> 的话，那么就是 <code>结构体</code> 生效，<br>如果下级是 <code>资源数据</code> 则是字段 <code>OffsetToData</code> 生效。</p>
+<p>当 <code>NameIsString</code> 为 <code>1</code> 时，<code>NameOffset</code> 指向一个 <code>IMAGE_RESOURCE_DIR_STRING_U</code> 结构体</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_RESOURCE_DIR_STRING_U</span> &#123;</span></span><br><span class="line">    WORD  Length;        <span class="comment">// 字符串的字节数</span></span><br><span class="line">    WCHAR NameString[<span class="number">1</span>]; <span class="comment">// 字符串的内容信息</span></span><br><span class="line">&#125; IMAGE_RESOURCE_DIR_STRING_U, *PIMAGE_RESOURCE_DIR_STRING_U;</span><br></pre></td></tr></table></figure>
+
+<p>当 <code>Name</code> 位于 <code>第1层</code> 目录时表示的 <code>资源类型</code> 如下表所示</p>
+<table>
+<thead>
+<tr>
+<th>类型值</th>
+<th>资源类型</th>
+<th>类型值</th>
+<th>资源类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0x00000001</td>
+<td>鼠标指针（Cursor）</td>
+<td>0x00000008</td>
+<td>字体（Font）</td>
+</tr>
+<tr>
+<td>0x00000002</td>
+<td>位图（Bitmap）</td>
+<td>0x00000009</td>
+<td>快捷键（Accelerators）</td>
+</tr>
+<tr>
+<td>0x00000003</td>
+<td>图标（Icon）</td>
+<td>0x0000000A</td>
+<td>非格式化资源（Unformatted）</td>
+</tr>
+<tr>
+<td>0x00000004</td>
+<td>菜单（Menu）</td>
+<td>0x0000000B</td>
+<td>消息列表（Message Table）</td>
+</tr>
+<tr>
+<td>0x00000005</td>
+<td>对话框（Dialog）</td>
+<td>0x0000000C</td>
+<td>鼠标指针组（Group Cursor）</td>
+</tr>
+<tr>
+<td>0x00000006</td>
+<td>字符串列表（String Table）</td>
+<td>0x0000000E</td>
+<td>图标组（Group Icon）</td>
+</tr>
+<tr>
+<td>0x00000007</td>
+<td>字体目录（Font Directory）</td>
+<td>0x00000010</td>
+<td>版本信息（Version Information）</td>
+</tr>
+</tbody></table>
+<p>在经过3层目录的索引后，最后是一个 <code>IMAGE_RESOURCE_DATA_ENTRY</code> 结构体，定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_RESOURCE_DATA_ENTRY</span> &#123;</span></span><br><span class="line">    DWORD OffsetToData; <span class="comment">// 资源数据的RVA</span></span><br><span class="line">    DWORD Size;            <span class="comment">// 资源数据的大小</span></span><br><span class="line">    DWORD CodePage;        <span class="comment">// 代码页</span></span><br><span class="line">    DWORD Reserved;        <span class="comment">// 保留字段，通常为0x00000000</span></span><br><span class="line">&#125; IMAGE_RESOURCE_DATA_ENTRY, *PIMAGE_RESOURCE_DATA_ENTRY;</span><br></pre></td></tr></table></figure>
+
+<p>资源表的3层目录关系，如下图所示</p>
+<p><img src="01.png" alt="关系图"></p>
+<h4 id="重定位表"><a href="#重定位表" class="headerlink" title="重定位表"></a>重定位表</h4><p>系统在加载DLL文件时，并不是每次都能加载到预期的 <code>ImageBase</code> 基址上，所以DLL都存在 <code>基址重定位表</code>，<br>用来修正相关的地址信息，另外EXE的 <code>动态基址</code> 技术，也是用 <code>基址重定位表</code> 实现的。</p>
+<p>PE文件中的重定位信息是由多个 <code>IMAGE_BASE_RELOCATION</code> 结构体组成的，每个结构体只描述一个 <code>4KB</code> 大小<br>的分页内重定位信息，也就是 <code>0x1000</code> 字节，因此结构体中 <code>VirtualAddress</code> 的值总是为 <code>0x1000</code> 的倍数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">IMAGE_BASE_RELOCATION</span> &#123;</span></span><br><span class="line">    DWORD VirtualAddress; <span class="comment">// 需要重定位数据的起始RVA</span></span><br><span class="line">    DWORD SizeOfBlock;    <span class="comment">// 本结构与TypeOffset总大小</span></span><br><span class="line"><span class="comment">//  WORD  TypeOffset[1];  // 原则上不属于本结构</span></span><br><span class="line">&#125; IMAGE_BASE_RELOCATION, *PIMAGE_BASE_RELOCATION;</span><br></pre></td></tr></table></figure>
+
+<p>重定位的本质非常简单，就是比较实际加载地址与 <code>ImageBase</code> 的值，如果相等则不需要做任何操作，如果<br>不相等就需要把重定位表中指定的地址处加上这个差值。</p>
+<p><code>TypeOffset</code> 由两部分数据组成，<code>高4位</code> 表示 <code>类型</code>，<code>低12位</code> 表示 <code>偏移</code>。类型定义如下</p>
+<table>
+<thead>
+<tr>
+<th>值</th>
+<th>信息</th>
+<th>宏定义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>无重定位操作，填0后用于4字节对齐</td>
+<td>IMAGE_REL_BASED_ABSOLUTE</td>
+</tr>
+<tr>
+<td>1</td>
+<td>重定位偏移指向位置的高2个字节需要被修正</td>
+<td>IMAGE_REL_BASED_HIGH</td>
+</tr>
+<tr>
+<td>2</td>
+<td>重定位偏移指向位置的高2个字节需要被修正</td>
+<td>IMAGE_REL_BASED_LOW</td>
+</tr>
+<tr>
+<td>3</td>
+<td>重定位偏移指向的4个字节的地址需要被修正</td>
+<td>IMAGE_REL_BASED_HIGHLOW</td>
+</tr>
+<tr>
+<td>4</td>
+<td>需要使用两项TypeOffset才能完成索引操作</td>
+<td>IMAGE_REL_BASED_HIGHADJ</td>
+</tr>
+<tr>
+<td>5</td>
+<td>基址重定位应用于MIPS jump指令</td>
+<td>IMAGE_REL_BASED_MIPS_JMPADDR</td>
+</tr>
+<tr>
+<td>6</td>
+<td>保留</td>
+<td>IMAGE_REL_BASED_RESERVED</td>
+</tr>
+<tr>
+<td>9</td>
+<td>基址重定位应用于MIPS16 jump指令</td>
+<td>IMAGE_REL_BASED_IA64_IMM64</td>
+</tr>
+<tr>
+<td>10</td>
+<td>重定位偏移指向的8个字节（64位）地址需要被修正</td>
+<td>IMAGE_REL_BASED_DIR64</td>
+</tr>
+</tbody></table>
+<p>重定位表结构如下图所示</p>
+<p><img src="02.png" alt="结构图"></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/" rel="tag"># 汇编语言</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/" rel="prev" title="PE文件格式解析(2)">
+                  <i class="fa fa-chevron-left"></i> PE文件格式解析(2)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2020/01/16/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E9%87%8D%E5%8F%A0IO%E6%A8%A1%E5%9E%8B%E5%92%8C%E5%AE%8C%E6%88%90%E7%AB%AF%E5%8F%A3-1/" rel="next" title="重叠IO模型和完成端口(1)">
+                  重叠IO模型和完成端口(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

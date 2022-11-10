@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="前言 通常情况下驱动想要主动与应用层通讯，都是借助于内核同步对象（比如事件、信号量等）来实现， 但是使用内核同步对象对 IRQL 有限制，某些特殊环境下是 APC_LEVEL 级别，这就产生了一些问题">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用MiniFilter与应用层通讯(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="前言 通常情况下驱动想要主动与应用层通讯，都是借助于内核同步对象（比如事件、信号量等）来实现， 但是使用内核同步对象对 IRQL 有限制，某些特殊环境下是 APC_LEVEL 级别，这就产生了一些问题">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://yhsnlkm.github.io/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/01.png">
+<meta property="article:published_time" content="2020-01-10T02:44:49.000Z">
+<meta property="article:modified_time" content="2021-01-04T03:13:10.222Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="攻防保护">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://yhsnlkm.github.io/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/01.png">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>使用MiniFilter与应用层通讯(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%86%85%E6%A0%B8%E5%90%8C%E6%AD%A5%E5%AF%B9%E8%B1%A1"><span class="nav-number">2.</span> <span class="nav-text">内核同步对象</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#MiniFilter%E9%80%9A%E8%AE%AF%E7%AB%AF%E5%8F%A3"><span class="nav-number">3.</span> <span class="nav-text">MiniFilter通讯端口</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%A9%B1%E5%8A%A8%E5%90%91%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF"><span class="nav-number">4.</span> <span class="nav-text">驱动向应用层通讯</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2020/01/10/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8MiniFilter%E4%B8%8E%E5%BA%94%E7%94%A8%E5%B1%82%E9%80%9A%E8%AE%AF-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用MiniFilter与应用层通讯(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2020-01-10 10:44:49" itemprop="dateCreated datePublished" datetime="2020-01-10T10:44:49+08:00">2020-01-10</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-01-04 11:13:10" itemprop="dateModified" datetime="2021-01-04T11:13:10+08:00">2021-01-04</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" itemprop="url" rel="index"><span itemprop="name">攻防保护</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h4><p>通常情况下驱动想要主动与应用层通讯，都是借助于内核同步对象（比如事件、信号量等）来实现，<br>但是使用内核同步对象对 <code>IRQL</code> 有限制，某些特殊环境下是 <code>APC_LEVEL</code> 级别，这就产生了一些问题。</p>
+<h4 id="内核同步对象"><a href="#内核同步对象" class="headerlink" title="内核同步对象"></a>内核同步对象</h4><p>我们以内核同步对象中的 <code>事件(Event)</code> 为例，可以在MSDN文档中查看 <code>ZwSetEvent</code> 和 <code>KeSetEvent</code><br>的相关说明，其中 <code>ZwSetEvent</code> 只能运行在 <code>PASSIVE_LEVEL</code> 级别下，而 <code>KeSetEvent</code> 则是说明如下</p>
+<p><img src="01.png" alt="KeSetEvent"></p>
+<p>可以知道 <code>KeSetEvent</code> 适应的范围更广，由于 <code>KeSetEvent</code> 操作的不是句柄，把内核中的事件跟应用层<br>关联起来的方法，就是使用 <code>IoCreateNotificationEvent</code> 和 <code>IoCreateSynchronizationEvent</code> 来<br>创建跟应用层 <code>相同名称</code> 的事件，可以获取到对应的句柄和内核对象。</p>
+<p>注意：先从应用层创建，再从内核层打开，两者具有相同权限。如果先从内核层创建，再从应用层打开，<br>应用层只能 <code>WaitForSingleObject</code> 而没有修改的权限。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PKEVENT <span class="title">IoCreateNotificationEvent</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_   PUNICODE_STRING EventName,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_  PHANDLE EventHandle</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建或打开手动复位的命名事件</span></span><br><span class="line"></span><br><span class="line"><span class="function">PKEVENT <span class="title">IoCreateSynchronizationEvent</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  PUNICODE_STRING EventName,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ PHANDLE         EventHandle</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建或打开自动复位的命名事件</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="MiniFilter通讯端口"><a href="#MiniFilter通讯端口" class="headerlink" title="MiniFilter通讯端口"></a>MiniFilter通讯端口</h4><p>MiniFilter跟应用层通讯，可以在 <code>APC_LEVEL</code> 级别下进行，某些情况下可以选择此通讯方式。<br>本例子以WDK源码中 <code>src -&gt; filesys -&gt; miniFilter -&gt; minispy</code> 工程作为基础。<br>创建驱动与应用层通讯的端口，需要安全描述符，如下为相关创建和释放的函数</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">FltBuildDefaultSecurityDescriptor</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_  PSECURITY_DESCRIPTOR *SecurityDescriptor,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_   ACCESS_MASK DesiredAccess</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建描述权限的安全描述符</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">FltFreeSecurityDescriptor</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ PSECURITY_DESCRIPTOR SecurityDescriptor</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 释放安全描述符内存</span></span><br></pre></td></tr></table></figure>
+
+<p>创建好安全描述符后，就可以使用描述符创建和关闭通讯端口</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">FltCreateCommunicationPort</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      PFLT_FILTER Filter,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_     PFLT_PORT *ServerPort,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      POBJECT_ATTRIBUTES ObjectAttributes,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_  PVOID ServerPortCookie,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      PFLT_CONNECT_NOTIFY ConnectNotifyCallback,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      PFLT_DISCONNECT_NOTIFY DisconnectNotifyCallback,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_  PFLT_MESSAGE_NOTIFY MessageNotifyCallback,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_      LONG MaxConnections</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 创建通讯端口</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">FltCloseCommunicationPort</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ PFLT_PORT ServerPort</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 关闭通讯端口</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">FltCloseClientPort</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  PFLT_FILTER Filter,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ PFLT_PORT   *ClientPort</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 关闭客户端通讯</span></span><br></pre></td></tr></table></figure>
+
+<p>当应用层连接驱动的通讯端口时，就会触发 <code>ConnectNotifyCallback</code> 回调，在这里我们要保存<br> <code>ClientPort</code> 信息，给驱动主动往应用层发送数据时用。当应用层关闭与驱动连接的通讯时，就会<br>触发 <code>DisconnectNotifyCallback</code> 回调，这里我们要使用 <code>FltCloseClientPort</code> 关闭 <code>ClientPort</code>，<br>当应用层主动向驱动发送数据时，就会触发 <code>MessageNotifyCallback</code> 回调，我们在这里进行数据操作。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 全局变量</span></span><br><span class="line">PFLT_FILTER FilterHandle = <span class="literal">NULL</span>; <span class="comment">// 过滤器句柄</span></span><br><span class="line">PFLT_PORT FilterServerPort = <span class="literal">NULL</span>; <span class="comment">// 驱动端口</span></span><br><span class="line">PFLT_PORT FilterClientPort = <span class="literal">NULL</span>; <span class="comment">// 应用端口</span></span><br></pre></td></tr></table></figure>
+
+<p>如下为连接驱动通讯端口时 <code>ConnectNotifyCallback</code> 回调函数的处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">ConnectCallback</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PFLT_PORT ClientPort,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID ServerPortCookie,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID ConnectionContext,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG SizeOfContext,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PVOID *ConnectionPortCookie)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UNREFERENCED_PARAMETER(ServerPortCookie);</span><br><span class="line">    UNREFERENCED_PARAMETER(ConnectionContext);</span><br><span class="line">    UNREFERENCED_PARAMETER(SizeOfContext);</span><br><span class="line">    UNREFERENCED_PARAMETER(ConnectionPortCookie);</span><br><span class="line">    FilterClientPort = ClientPort;</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如下为关闭与驱动连接的通讯时 <code>DisconnectNotifyCallback</code> 回调函数的处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">DisconnectCallback</span><span class="params">(IN PVOID ConnectionCookie)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UNREFERENCED_PARAMETER(ConnectionCookie);</span><br><span class="line">    FltCloseClientPort(FilterHandle, &amp;FilterClientPort);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如下为主动向驱动发送数据时 <code>MessageNotifyCallback</code> 回调函数的处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">MessageCallback</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID PortCookie,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID InputBuffer OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG InputBufferLength,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PVOID OutputBuffer OPTIONAL,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG OutputBufferLength,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PULONG ReturnOutputBufferLength)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UCHAR Command = <span class="number">0</span>;</span><br><span class="line">    UNREFERENCED_PARAMETER(PortCookie);</span><br><span class="line">    <span class="comment">// 检查输入缓冲区</span></span><br><span class="line">    <span class="keyword">if</span> ((InputBuffer == <span class="literal">NULL</span>) || (InputBufferLength != <span class="number">1</span>))</span><br><span class="line">        <span class="keyword">return</span> STATUS_INVALID_PARAMETER;</span><br><span class="line">    <span class="comment">// 检查输出缓冲区</span></span><br><span class="line">    <span class="keyword">if</span> ((OutputBuffer == <span class="literal">NULL</span>) || (OutputBufferLength != <span class="number">1</span>))</span><br><span class="line">        <span class="keyword">return</span> STATUS_INVALID_PARAMETER;</span><br><span class="line">    <span class="comment">// 检查实际大小指针</span></span><br><span class="line">    <span class="keyword">if</span> ((ReturnOutputBufferLength == <span class="literal">NULL</span>))</span><br><span class="line">        <span class="keyword">return</span> STATUS_INVALID_PARAMETER;</span><br><span class="line">    <span class="comment">// 对缓冲区的操作要放到try/except中</span></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        Command = *((PUCHAR)InputBuffer);</span><br><span class="line">    &#125; except(EXCEPTION_EXECUTE_HANDLER) &#123;</span><br><span class="line">        <span class="keyword">return</span> GetExceptionCode();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 把传入的数据加1</span></span><br><span class="line">    Command++;</span><br><span class="line">    <span class="comment">// 对缓冲区的操作要放到try/except中</span></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        *((PUCHAR)OutputBuffer) = Command;</span><br><span class="line">    &#125; except(EXCEPTION_EXECUTE_HANDLER) &#123;</span><br><span class="line">        <span class="keyword">return</span> GetExceptionCode();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 实际数据大小</span></span><br><span class="line">    *ReturnOutputBufferLength = <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如下为驱动入口函数注册通讯端口的代码</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">DriverEntry</span><span class="params">(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    PSECURITY_DESCRIPTOR pDescriptor = <span class="literal">NULL</span>;</span><br><span class="line">    OBJECT_ATTRIBUTES Attributes = &#123; <span class="number">370030</span> &#125;;</span><br><span class="line">    UNICODE_STRING PortName = RTL_CONSTANT_STRING(<span class="string">L&quot;MyCommPort&quot;</span>);</span><br><span class="line">    UNREFERENCED_PARAMETER(RegistryPath);</span><br><span class="line">    <span class="comment">// 注册过滤器</span></span><br><span class="line">    Status = FltRegisterFilter(DriverObject, &amp;Registration, &amp;FilterHandle);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">return</span> Status;</span><br><span class="line">    <span class="comment">// 创建安全描述符</span></span><br><span class="line">    Status = FltBuildDefaultSecurityDescriptor(&amp;pDescriptor, FLT_PORT_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        FltUnregisterFilter(FilterHandle);</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 初始化通讯端口属性</span></span><br><span class="line">    InitializeObjectAttributes(&amp;Attributes, &amp;PortName,</span><br><span class="line">        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, <span class="literal">NULL</span>, pDescriptor);</span><br><span class="line">    <span class="comment">// 创建与应用层通讯端口</span></span><br><span class="line">    Status = FltCreateCommunicationPort(FilterHandle, &amp;FilterServerPort,</span><br><span class="line">        &amp;Attributes, <span class="literal">NULL</span>, ConnectCallback, DisconnectCallback, MessageCallback, <span class="number">1</span>);</span><br><span class="line">    <span class="comment">// 释放安全描述符内存</span></span><br><span class="line">    FltFreeSecurityDescriptor(pDescriptor);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        FltUnregisterFilter(FilterHandle);</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 启动过滤器</span></span><br><span class="line">    Status = FltStartFiltering(FilterHandle);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        FltCloseCommunicationPort(FilterServerPort);</span><br><span class="line">        FltUnregisterFilter(FilterHandle);</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>应用层向驱动通讯通讯时，连接通讯端口和发送数据的函数定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">HRESULT <span class="title">FilterConnectCommunicationPort</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     LPCWSTR               lpPortName,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     DWORD                 dwOptions,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPCVOID               lpContext,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     WORD                  dwSizeOfContext,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPSECURITY_ATTRIBUTES lpSecurityAttributes,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_    HANDLE                *hPort</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 连接驱动的通讯端口</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">HRESULT <span class="title">FilterSendMessage</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     HANDLE  hPort,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ LPVOID  lpInBuffer,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     DWORD   dwInBufferSize,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_    LPVOID  lpOutBuffer,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     DWORD   dwOutBufferSize,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_    LPDWORD lpBytesReturned</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 发送数据给驱动</span></span><br></pre></td></tr></table></figure>
+
+<p>实际使用的示例代码如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">CommunicationToDriverTest</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 连接驱动的通讯端口</span></span><br><span class="line">    HANDLE Port = <span class="literal">NULL</span>;</span><br><span class="line">    HRESULT Result = FilterConnectCommunicationPort(</span><br><span class="line">        <span class="string">L&quot;MyCommPort&quot;</span>, <span class="number">0</span>, <span class="literal">NULL</span>, <span class="number">0</span>, <span class="literal">NULL</span>, &amp;Port);</span><br><span class="line">    <span class="keyword">if</span> (Result != S_OK) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 发送和接收数据</span></span><br><span class="line">    DWORD dwRet = <span class="number">0</span>;</span><br><span class="line">    UCHAR InBuffer = <span class="number">55</span>;</span><br><span class="line">    UCHAR OutBuffer = <span class="number">0</span>;</span><br><span class="line">    Result = FilterSendMessage(</span><br><span class="line">        Port, &amp;InBuffer, <span class="keyword">sizeof</span>(UCHAR), &amp;OutBuffer, <span class="keyword">sizeof</span>(UCHAR), &amp;dwRet);</span><br><span class="line">    CloseHandle(Port); <span class="comment">// 关闭句柄</span></span><br><span class="line">    <span class="keyword">if</span> (Result != S_OK) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="驱动向应用层通讯"><a href="#驱动向应用层通讯" class="headerlink" title="驱动向应用层通讯"></a>驱动向应用层通讯</h4><p>驱动向应用层通讯的工作方式，与Windows的消息循环模式类似，需要先在应用层创建消息循环体，<br>然后驱动再发送给应用层。并且应用层在读取和回复消息时，需要增加一个消息头结构体，如下所示</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">FILTER_MESSAGE_HEADER</span> &#123;</span></span><br><span class="line">    ULONG     ReplyLength; <span class="comment">// 驱动可接收的缓冲区大小</span></span><br><span class="line">    ULONGLONG MessageId;   <span class="comment">// 驱动生成的通讯消息ID</span></span><br><span class="line">&#125; FILTER_MESSAGE_HEADER, *PFILTER_MESSAGE_HEADER;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">FILTER_REPLY_HEADER</span> &#123;</span></span><br><span class="line">  NTSTATUS  Status; <span class="comment">// 回复给驱动的结果</span></span><br><span class="line">  ULONGLONG MessageId; <span class="comment">// 回复目标通讯消息ID</span></span><br><span class="line">&#125; FILTER_REPLY_HEADER, *PFILTER_REPLY_HEADER;</span><br></pre></td></tr></table></figure>
+
+<p>我们这里做如下示例定义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">MY_GET_MSG</span> &#123;</span></span><br><span class="line">    FILTER_MESSAGE_HEADER Header; <span class="comment">// 附加的头</span></span><br><span class="line">    ULONG ProcessID; <span class="comment">// 实际通讯的数据</span></span><br><span class="line">&#125; MY_GET_MSG, *PMY_GET_MSG;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">MY_REPLAY_MSG</span> &#123;</span></span><br><span class="line">    FILTER_REPLY_HEADER Header; <span class="comment">// 附加的头</span></span><br><span class="line">    ULONG ProcessID; <span class="comment">// 实际通讯的数据</span></span><br><span class="line">&#125; MY_REPLAY_MSG, *PMY_REPLAY_MSG;</span><br></pre></td></tr></table></figure>
+
+<p>如下为实际使用时的示例代码，需要注意的是，编译器有个 <code>结构体自动对齐</code> 的功能，以如上定义的<br>结构体为例，尽管我们通讯的 <code>ProcessID</code> 是 <code>ULONG</code> 类型，但是整个结构体会对齐到 <code>ULONGLONG</code> 大小，<br>如果我们使用整个结构体的大小，就会超出驱动中能接收的 <code>sizeof(ULONG)</code> 大小。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">GetDriverCommunicationTest</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 连接驱动的通讯端口</span></span><br><span class="line">    HANDLE Port = <span class="literal">NULL</span>;</span><br><span class="line">    HRESULT Result = FilterConnectCommunicationPort(</span><br><span class="line">        <span class="string">L&quot;MyCommPort&quot;</span>, <span class="number">0</span>, <span class="literal">NULL</span>, <span class="number">0</span>, <span class="literal">NULL</span>, &amp;Port);</span><br><span class="line">    <span class="keyword">if</span> (Result != S_OK) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 创建消息循环</span></span><br><span class="line">    MY_GET_MSG stGetMsg = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    MY_REPLAY_MSG stReplayMsg = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 等待读取驱动的信息</span></span><br><span class="line">        <span class="built_in">memset</span>(&amp;stGetMsg, <span class="number">0</span>, <span class="keyword">sizeof</span>(MY_GET_MSG));</span><br><span class="line">        Result = FilterGetMessage(</span><br><span class="line">            Port, &amp;stGetMsg.Header, <span class="keyword">sizeof</span>(MY_GET_MSG), <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (Result != S_OK) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 把读取到的信息加1</span></span><br><span class="line">        stReplayMsg.Header.Status = STATUS_SUCCESS;</span><br><span class="line">        stReplayMsg.Header.MessageId = stGetMsg.Header.MessageId;</span><br><span class="line">        stReplayMsg.ProcessID = stGetMsg.ProcessID + <span class="number">1</span>;</span><br><span class="line">        <span class="comment">// 回复给驱动的信息(由于结构体的自动对齐情况,</span></span><br><span class="line">        <span class="comment">//   可能sizeof(MY_REPLAY_MSG)中超出原本sizeof(ULONG)的大小)</span></span><br><span class="line">        Result = FilterReplyMessage(</span><br><span class="line">            Port, &amp;stReplayMsg.Header,</span><br><span class="line">            <span class="keyword">sizeof</span>(FILTER_REPLY_HEADER) + <span class="keyword">sizeof</span>(ULONG));</span><br><span class="line">        <span class="keyword">if</span> (Result != S_OK) <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    CloseHandle(Port); <span class="comment">// 关闭句柄</span></span><br><span class="line">    <span class="keyword">if</span> (Result != S_OK) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" rel="tag"># 攻防保护</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2020/01/06/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-1/" rel="prev" title="PE文件格式解析(1)">
+                  <i class="fa fa-chevron-left"></i> PE文件格式解析(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2020/01/14/%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80/PE%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90-2/" rel="next" title="PE文件格式解析(2)">
+                  PE文件格式解析(2) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

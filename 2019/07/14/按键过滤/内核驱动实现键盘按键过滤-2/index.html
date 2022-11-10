@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="内核驱动中实现键盘过滤 在WINDOWS中所有接入的键盘设备，都存储在 kbdclass.sys 这个驱动中。 我们可以通过监控 键盘设备接入 的动作，来遍历 kbdclass.sys 驱动中所有的设">
+<meta property="og:type" content="article">
+<meta property="og:title" content="内核驱动实现键盘按键过滤(2)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/07/14/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8%E5%AE%9E%E7%8E%B0%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4-2/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="内核驱动中实现键盘过滤 在WINDOWS中所有接入的键盘设备，都存储在 kbdclass.sys 这个驱动中。 我们可以通过监控 键盘设备接入 的动作，来遍历 kbdclass.sys 驱动中所有的设">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-07-14T03:47:22.000Z">
+<meta property="article:modified_time" content="2019-10-14T06:10:01.913Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="按键过滤">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/07/14/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8%E5%AE%9E%E7%8E%B0%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4-2/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>内核驱动实现键盘按键过滤(2) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8%E4%B8%AD%E5%AE%9E%E7%8E%B0%E9%94%AE%E7%9B%98%E8%BF%87%E6%BB%A4"><span class="nav-number">1.</span> <span class="nav-text">内核驱动中实现键盘过滤</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%BF%87%E6%BB%A4%E9%A9%B1%E5%8A%A8%E7%9A%84%E5%A4%84%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">过滤驱动的处理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%94%AE%E7%9B%98%E8%AE%BE%E5%A4%87%E6%8E%A5%E5%85%A5%E7%9A%84%E7%9B%91%E6%8E%A7"><span class="nav-number">3.</span> <span class="nav-text">键盘设备接入的监控</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/07/14/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8%E5%AE%9E%E7%8E%B0%E9%94%AE%E7%9B%98%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          内核驱动实现键盘按键过滤(2)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-07-14 11:47:22" itemprop="dateCreated datePublished" datetime="2019-07-14T11:47:22+08:00">2019-07-14</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2019-10-14 14:10:01" itemprop="dateModified" datetime="2019-10-14T14:10:01+08:00">2019-10-14</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/" itemprop="url" rel="index"><span itemprop="name">按键过滤</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="内核驱动中实现键盘过滤"><a href="#内核驱动中实现键盘过滤" class="headerlink" title="内核驱动中实现键盘过滤"></a>内核驱动中实现键盘过滤</h4><p>在WINDOWS中所有接入的键盘设备，都存储在 <code>kbdclass.sys</code> 这个驱动中。<br>我们可以通过监控 <code>键盘设备接入</code> 的动作，来遍历 <code>kbdclass.sys</code> 驱动中所有的设备。<br>然后创建 <code>过滤设备</code> 并附加到 <code>键盘设备</code> 上，就可以拦截到该设备 <code>键盘按键</code> 的操作</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;ntifs.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;ntddkbd.h&gt;</span></span></span><br><span class="line"><span class="comment">// 键盘设备驱动名称</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> KBD_DRIVER_NAME <span class="meta-string">L&quot;\\Driver\\kbdclass&quot;</span></span></span><br><span class="line"><span class="comment">// 驱动对象的类型</span></span><br><span class="line"><span class="keyword">extern</span> POBJECT_TYPE* IoDriverObjectType;</span><br><span class="line"><span class="comment">// 已附加的设备链表节点定义</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">ATTACH_ENTRY</span> &#123;</span></span><br><span class="line">    LIST_ENTRY Entry;</span><br><span class="line">    PDEVICE_OBJECT FilterDevice;</span><br><span class="line">    PDEVICE_OBJECT PhysicalDevice;</span><br><span class="line">&#125; ATTACH_ENTRY, *PATTACH_ENTRY;</span><br><span class="line"><span class="comment">// 设备扩展信息，保存附加的设备</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">DEVICE_EXTENSION</span> &#123;</span></span><br><span class="line">    PDEVICE_OBJECT AttachedToDevice;</span><br><span class="line">&#125; DEVICE_EXTENSION, *PDEVICE_EXTENSION;</span><br><span class="line"><span class="comment">// 通过名称获取内核对象，已导出但未文档化的函数</span></span><br><span class="line"><span class="function">NTKERNELAPI NTSTATUS <span class="title">ObReferenceObjectByName</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PUNICODE_STRING ObjectName,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ULONG Attributes,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PACCESS_STATE AccessState,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN ACCESS_MASK DesiredAccess,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN POBJECT_TYPE ObjectType,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN KPROCESSOR_MODE AccessMode,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN OUT PVOID ParseContext,</span></span></span><br><span class="line"><span class="function"><span class="params">    OUT PVOID* Object)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>另外我们需要处理 <code>已经附加的设备</code> 的列表，已附加的设备要跳过，设备移除也要删除对应节点</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PATTACH_ENTRY <span class="title">FindPhysicalEntry</span><span class="params">(PDEVICE_OBJECT DeviceObject)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    KIRQL OldIrql = <span class="number">0</span>;</span><br><span class="line">    PLIST_ENTRY Entry = <span class="literal">NULL</span>;</span><br><span class="line">    PATTACH_ENTRY AttachEntry = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检验参数是否为空指针</span></span><br><span class="line">    <span class="keyword">if</span> (DeviceObject == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 遍历链表</span></span><br><span class="line">    KeAcquireSpinLock(&amp;AttachLock, &amp;OldIrql);</span><br><span class="line">    <span class="keyword">for</span> (Entry = AttachList.Flink; Entry != &amp;AttachList; Entry = Entry-&gt;Flink)</span><br><span class="line">    &#123;</span><br><span class="line">        AttachEntry = CONTAINING_RECORD(Entry, ATTACH_ENTRY, Entry);</span><br><span class="line">        <span class="keyword">if</span> (AttachEntry-&gt;PhysicalDevice == DeviceObject)</span><br><span class="line">        &#123;</span><br><span class="line">            KeReleaseSpinLock(&amp;AttachLock, OldIrql);</span><br><span class="line">            <span class="keyword">return</span> AttachEntry;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    KeReleaseSpinLock(&amp;AttachLock, OldIrql);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PATTACH_ENTRY <span class="title">RemoveFilterEntry</span><span class="params">(PDEVICE_OBJECT DeviceObject)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    KIRQL OldIrql = <span class="number">0</span>;</span><br><span class="line">    PLIST_ENTRY Entry = <span class="literal">NULL</span>;</span><br><span class="line">    PATTACH_ENTRY AttachEntry = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检验参数是否为空指针</span></span><br><span class="line">    <span class="keyword">if</span> (DeviceObject == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 遍历链表</span></span><br><span class="line">    KeAcquireSpinLock(&amp;AttachLock, &amp;OldIrql);</span><br><span class="line">    <span class="keyword">for</span> (Entry = AttachList.Flink; Entry != &amp;AttachList; Entry = Entry-&gt;Flink)</span><br><span class="line">    &#123;</span><br><span class="line">        AttachEntry = CONTAINING_RECORD(Entry, ATTACH_ENTRY, Entry);</span><br><span class="line">        <span class="keyword">if</span> (AttachEntry-&gt;FilterDevice == DeviceObject)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 移除节点</span></span><br><span class="line">            RemoveEntryList(&amp;AttachEntry-&gt;Entry);</span><br><span class="line">            KeReleaseSpinLock(&amp;AttachLock, OldIrql);</span><br><span class="line">            <span class="keyword">return</span> AttachEntry;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    KeReleaseSpinLock(&amp;AttachLock, OldIrql);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="过滤驱动的处理"><a href="#过滤驱动的处理" class="headerlink" title="过滤驱动的处理"></a>过滤驱动的处理</h4><p>我们需要处理的驱动 <code>派遣函数</code>为  <code>IRP_MJ_READ</code> <code>IRP_MJ_POWER</code> <code>IRP_MJ_PNP</code> 共三项</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">DriverObject-&gt;MajorFunction[IRP_MJ_READ] = DispatchRead;</span><br><span class="line">DriverObject-&gt;MajorFunction[IRP_MJ_POWER] = DispatchPower;</span><br><span class="line">DriverObject-&gt;MajorFunction[IRP_MJ_PNP] = DispatchPnp;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>IRP_MJ_READ</code> 中，我们处理获取到的 <code>键盘按键</code> 信息，注意是在 <code>完成函数</code> 中处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">DispatchRead</span><span class="params">(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PDEVICE_EXTENSION DevExt = (PDEVICE_EXTENSION)DeviceObject-&gt;DeviceExtension;</span><br><span class="line">    <span class="comment">// 设置完成函数ReadCompletion</span></span><br><span class="line">    IoCopyCurrentIrpStackLocationToNext(Irp);</span><br><span class="line">    IoSetCompletionRoutine(Irp, ReadCompletion, <span class="literal">NULL</span>, TRUE, TRUE, TRUE);</span><br><span class="line">    <span class="keyword">return</span> IoCallDriver(DevExt-&gt;AttachedToDevice, Irp);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">ReadCompletion</span><span class="params">(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    ULONG_PTR Index = <span class="number">0</span>;</span><br><span class="line">    ULONG_PTR NumKeys = <span class="number">0</span>;</span><br><span class="line">    PIO_STACK_LOCATION IrpSp = <span class="literal">NULL</span>;</span><br><span class="line">    PKEYBOARD_INPUT_DATA KeyData = <span class="literal">NULL</span>;</span><br><span class="line">    UNREFERENCED_PARAMETER(DeviceObject);</span><br><span class="line">    UNREFERENCED_PARAMETER(Context);</span><br><span class="line">    <span class="comment">// 如果读取键盘的操作成功</span></span><br><span class="line">    IrpSp = IoGetCurrentIrpStackLocation(Irp);</span><br><span class="line">    <span class="keyword">if</span> (Irp-&gt;IoStatus.Status == STATUS_SUCCESS)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 系统在SystemBuffer中保存按键信息</span></span><br><span class="line">        KeyData = Irp-&gt;AssociatedIrp.SystemBuffer;</span><br><span class="line">        <span class="keyword">if</span> (KeyData != <span class="literal">NULL</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">// 获取按键的数量</span></span><br><span class="line">            NumKeys = Irp-&gt;IoStatus.Information / <span class="keyword">sizeof</span>(KEYBOARD_INPUT_DATA);</span><br><span class="line">            <span class="keyword">for</span> (Index = <span class="number">0</span>; Index &lt; NumKeys; Index++)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="comment">// 检查按键码</span></span><br><span class="line">                <span class="keyword">if</span> (bKeyboardLock) <span class="comment">// 如果开启了过滤</span></span><br><span class="line">                &#123;</span><br><span class="line">                    <span class="comment">// (KeyData[Index].MakeCode == 29) // CTRL</span></span><br><span class="line">                    <span class="keyword">if</span> ((KeyData[Index].MakeCode == <span class="number">1</span>) || <span class="comment">// ESC</span></span><br><span class="line">                        (KeyData[Index].MakeCode == <span class="number">56</span>) || <span class="comment">// ALT</span></span><br><span class="line">                        (KeyData[Index].MakeCode == <span class="number">91</span>)) <span class="comment">// WIN</span></span><br><span class="line">                    &#123;</span><br><span class="line">                        <span class="comment">// 把按下键修改为弹起键</span></span><br><span class="line">                        <span class="keyword">if</span> (KeyData[Index].Flags == <span class="number">0</span>) KeyData[Index].Flags = <span class="number">1</span>;</span><br><span class="line">                        <span class="keyword">if</span> (KeyData[Index].Flags == <span class="number">2</span>) KeyData[Index].Flags = <span class="number">3</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 如果IRP是PENDING状态，继续标记PENDING</span></span><br><span class="line">    <span class="keyword">if</span> (Irp-&gt;PendingReturned) IoMarkIrpPending(Irp);</span><br><span class="line">    <span class="keyword">return</span> Irp-&gt;IoStatus.Status;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>IRP_MJ_POWER</code> 中处理电源管理，因为我们是过滤驱动，只需要把IRP直接往下转发就行</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">DispatchPower</span><span class="params">(PDEVICE_OBJECT DeviceObject, PIRP Irp)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PDEVICE_EXTENSION DevExt = (PDEVICE_EXTENSION)(DeviceObject-&gt;DeviceExtension);</span><br><span class="line">    <span class="comment">// 转发到下层设备，注意VISTA以上系统有变化</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">if</span> (NTDDI_VERSION &lt; NTDDI_VISTA)</span></span><br><span class="line">    PoStartNextPowerIrp(Irp);</span><br><span class="line">    IoSkipCurrentIrpStackLocation(Irp);</span><br><span class="line">    <span class="keyword">return</span> PoCallDriver(DevExt-&gt;AttachedToDevice, Irp);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">else</span></span></span><br><span class="line">    IoSkipCurrentIrpStackLocation(Irp);</span><br><span class="line">    <span class="keyword">return</span> IoCallDriver(DevExt-&gt;AttachedToDevice, Irp);</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>IRP_MJ_PNP</code> 中，我们要处理 <code>键盘设备移除</code> 时，解绑和删除 <code>过滤设备</code> 的操作</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">DispatchPnp</span><span class="params">(PDEVICE_OBJECT DeviceObject, PIRP Irp)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PIO_STACK_LOCATION IrpSp = <span class="literal">NULL</span>;</span><br><span class="line">    PDEVICE_EXTENSION DevExt = (PDEVICE_EXTENSION)(DeviceObject-&gt;DeviceExtension);</span><br><span class="line">    <span class="comment">// 处理子功能</span></span><br><span class="line">    IrpSp = IoGetCurrentIrpStackLocation(Irp);</span><br><span class="line">    <span class="keyword">switch</span> (IrpSp-&gt;MinorFunction)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">case</span> IRP_MN_REMOVE_DEVICE: <span class="comment">// 设备移除</span></span><br><span class="line">        <span class="comment">// 从过滤设备列表中移除</span></span><br><span class="line">        AttachEntry = RemoveFilterEntry(DeviceObject);</span><br><span class="line">        <span class="keyword">if</span> (AttachEntry != <span class="literal">NULL</span>)</span><br><span class="line">            ExFreePool(AttachEntry);</span><br><span class="line">        <span class="comment">// 解绑和删除过滤设备</span></span><br><span class="line">        IoDetachDevice(DevExt-&gt;AttachedToDevice);</span><br><span class="line">        IoDeleteDevice(DeviceObject);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 跳过当前设备，继续下发</span></span><br><span class="line">    IoSkipCurrentIrpStackLocation(Irp);</span><br><span class="line">    <span class="keyword">return</span> IoCallDriver(DevExt-&gt;AttachedToDevice, Irp);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="键盘设备接入的监控"><a href="#键盘设备接入的监控" class="headerlink" title="键盘设备接入的监控"></a>键盘设备接入的监控</h4><p>如何知道有键盘设备接入了呢，可以通过 <code>IoRegisterPlugPlayNotification</code> 函数，来注册一个PNP设备通知</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">IoRegisterPlugPlayNotification</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     IO_NOTIFICATION_EVENT_CATEGORY        EventCategory,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     ULONG                                 EventCategoryFlags,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ PVOID                                 EventCategoryData,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     PDRIVER_OBJECT                        DriverObject,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_     PDRIVER_NOTIFICATION_CALLBACK_ROUTINE CallbackRoutine,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_opt_ PVOID                                 Context,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_    PVOID                                 *NotificationEntry</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>通过指定参数 <code>EventCategory</code> 的类型，可以监控PNP设备的某些特定行为</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">EventCategoryDeviceInterfaceChange</span><br><span class="line"><span class="comment">// PnP events in this category include the arrival (enabling) of a new instance of a</span></span><br><span class="line"><span class="comment">// device interface class (GUID_DEVICE_INTERFACE_ARRIVAL), or the removal (disabling)</span></span><br><span class="line"><span class="comment">// of an existing device interface instance (GUID_DEVICE_INTERFACE_REMOVAL).</span></span><br><span class="line"></span><br><span class="line">EventCategoryHardwareProfileChange</span><br><span class="line"><span class="comment">// PnP events in this category include query-change (GUID_HWPROFILE_QUERY_CHANGE),</span></span><br><span class="line"><span class="comment">// change-complete (GUID_HWPROFILE_CHANGE_COMPLETE), and change-cancel</span></span><br><span class="line"><span class="comment">// (GUID_HWPROFILE_CHANGE_CANCELLED) of a hardware profile.</span></span><br><span class="line"></span><br><span class="line">EventCategoryTargetDeviceChange</span><br><span class="line"><span class="comment">// PnP events in this category include events related to removing a device: the</span></span><br><span class="line"><span class="comment">// device&#x27;s drivers received a query-remove IRP (GUID_TARGET_DEVICE_QUERY_REMOVE),</span></span><br><span class="line"><span class="comment">// the drivers completed a remove IRP (GUID_TARGET_DEVICE_REMOVE_COMPLETE), or the</span></span><br><span class="line"><span class="comment">// drivers received a cancel-remove IRP (GUID_TARGET_DEVICE_REMOVE_CANCELLED). This</span></span><br><span class="line"><span class="comment">// category is also used for custom notification events.</span></span><br></pre></td></tr></table></figure>
+
+<p>我们这里关注的是 <code>EventCategoryDeviceInterfaceChange</code> 类型，可以监控到 <code>设备的接入</code> 动作，<br>相关的GUID信息都在 <code>wdmguid.h</code> 中定义，这里因为只用其中几个信息，就单独拿出来重新定义</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// GUID_DEVICE_INTERFACE_ARRIVAL</span></span><br><span class="line">GUID GUID_INTERFACE_ARRIVAL = &#123;</span><br><span class="line">    <span class="number">0xcb3a4004</span>, <span class="number">0x46f0</span>, <span class="number">0x11d0</span>, <span class="number">0xb0</span>, <span class="number">0x8f</span>, <span class="number">0x00</span>, <span class="number">0x60</span>, <span class="number">0x97</span>, <span class="number">0x13</span>, <span class="number">0x05</span>, <span class="number">0x3f</span> &#125;;</span><br><span class="line"><span class="comment">// GUID_DEVINTERFACE_KEYBOARD</span></span><br><span class="line">GUID GUID_INTERFACE_KEYBOARD = &#123;</span><br><span class="line">    <span class="number">0x884b96c3</span>, <span class="number">0x56ef</span>, <span class="number">0x11d1</span>, <span class="number">0xbc</span>, <span class="number">0x8c</span>, <span class="number">0x00</span>, <span class="number">0xa0</span>, <span class="number">0xc9</span>, <span class="number">0x14</span>, <span class="number">0x05</span>, <span class="number">0xdd</span> &#125;;</span><br></pre></td></tr></table></figure>
+
+<p>我们要在 <code>DriverEntry</code> 中保存 <code>DriverObject</code> 到全局变量中，因为在 <code>附加设备</code> 时要用</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 保存当前驱动对象</span></span><br><span class="line">CurrentDriver = DriverObject;</span><br><span class="line"><span class="comment">// 注册PNP设备通知</span></span><br><span class="line">Status = IoRegisterPlugPlayNotification(</span><br><span class="line">    EventCategoryDeviceInterfaceChange,</span><br><span class="line">    PNPNOTIFY_DEVICE_INTERFACE_INCLUDE_EXISTING_INTERFACES,</span><br><span class="line">    &amp;GUID_INTERFACE_KEYBOARD,</span><br><span class="line">    DriverObject,</span><br><span class="line">    PnpNotifyCallback,</span><br><span class="line">    <span class="literal">NULL</span>,</span><br><span class="line">    &amp;NotificationEntry);</span><br></pre></td></tr></table></figure>
+
+<p>PNP通知的回调函数代码，主要是检测是不是有 <code>键盘设备接入</code> 的动作</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">PnpNotifyCallback</span><span class="params">(IN PVOID Structure, IN PVOID Context)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PGUID pEvent = <span class="literal">NULL</span>;</span><br><span class="line">    UNREFERENCED_PARAMETER(Context);</span><br><span class="line">    <span class="keyword">if</span> (Structure == <span class="literal">NULL</span>) <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">    pEvent = &amp;(((PDEVICE_INTERFACE_CHANGE_NOTIFICATION)Structure)-&gt;Event);</span><br><span class="line">    <span class="comment">// 比较内存空间，返回相等的字节数</span></span><br><span class="line">    <span class="keyword">if</span> (RtlEqualMemory(pEvent, &amp;GUID_INTERFACE_ARRIVAL, <span class="keyword">sizeof</span>(GUID)))</span><br><span class="line">    &#123;</span><br><span class="line">        EnumKeyboardDevice(); <span class="comment">// 遍历所有键盘设备</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如下为遍历 <code>kbdclass.sys</code> 驱动中所有键盘设备，并进行附加的操作</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">EnumKeyboardDevice</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    PATTACH_ENTRY AttachEntry = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    PDRIVER_OBJECT KBDDriverObject = <span class="literal">NULL</span>;</span><br><span class="line">    PDEVICE_OBJECT KBDDeviceObject = <span class="literal">NULL</span>;</span><br><span class="line">    UNICODE_STRING KBDDriverName = RTL_CONSTANT_STRING(KBD_DRIVER_NAME);</span><br><span class="line">    <span class="comment">// 获取键盘驱动对象以及设备对象</span></span><br><span class="line">    Status = ObReferenceObjectByName(&amp;KBDDriverName, OBJ_CASE_INSENSITIVE,</span><br><span class="line">        <span class="literal">NULL</span>, <span class="number">0</span>, *IoDriverObjectType, KernelMode, <span class="literal">NULL</span>, &amp;KBDDriverObject);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    KBDDeviceObject = KBDDriverObject-&gt;DeviceObject;</span><br><span class="line">    <span class="comment">// 遍历键盘设备对象</span></span><br><span class="line">    <span class="keyword">while</span> (KBDDeviceObject != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        AttachEntry = FindPhysicalEntry(KBDDeviceObject);</span><br><span class="line">        <span class="keyword">if</span> (AttachEntry == <span class="literal">NULL</span>)</span><br><span class="line">            Status = AttachKeyboardDevice(KBDDeviceObject);</span><br><span class="line">        KBDDeviceObject = KBDDeviceObject-&gt;NextDevice;</span><br><span class="line">    &#125;</span><br><span class="line">    ObDereferenceObject(KBDDriverObject);</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">AttachKeyboardDevice</span><span class="params">(IN PDEVICE_OBJECT PhysicalDevice)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    KIRQL OldIrql = <span class="number">0</span>;</span><br><span class="line">    PATTACH_ENTRY AttachEntry = <span class="literal">NULL</span>;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    PDEVICE_OBJECT FilterDevice = <span class="literal">NULL</span>;</span><br><span class="line">    PDEVICE_EXTENSION DevExt = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 检查参数</span></span><br><span class="line">    <span class="keyword">if</span> (PhysicalDevice == <span class="literal">NULL</span>) <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    <span class="comment">// 创建过滤设备对象</span></span><br><span class="line">    Status = IoCreateDevice(CurrentDriver, <span class="keyword">sizeof</span>(DEVICE_EXTENSION), <span class="literal">NULL</span>,</span><br><span class="line">        PhysicalDevice-&gt;DeviceType, PhysicalDevice-&gt;Characteristics, FALSE, &amp;FilterDevice);</span><br><span class="line">    <span class="keyword">if</span> (!NT_SUCCESS(Status))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span> Status;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 申请链表节点空间</span></span><br><span class="line">    AttachEntry = (PATTACH_ENTRY)EXALLOCATE(<span class="keyword">sizeof</span>(ATTACH_ENTRY));</span><br><span class="line">    <span class="keyword">if</span> (AttachEntry == <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        IoDeleteDevice(FilterDevice);</span><br><span class="line">        <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    &#125;</span><br><span class="line">    RtlZeroMemory(AttachEntry, <span class="keyword">sizeof</span>(ATTACH_ENTRY));</span><br><span class="line">    AttachEntry-&gt;FilterDevice = FilterDevice;</span><br><span class="line">    AttachEntry-&gt;PhysicalDevice = PhysicalDevice;</span><br><span class="line">    <span class="comment">// 设置过滤设备标志</span></span><br><span class="line">    FilterDevice-&gt;Flags |= PhysicalDevice-&gt;Flags;</span><br><span class="line">    <span class="comment">// 得到设备扩展结构，以便下面保存过滤设备信息</span></span><br><span class="line">    DevExt = (PDEVICE_EXTENSION)FilterDevice-&gt;DeviceExtension;</span><br><span class="line">    <span class="comment">// 将过滤设备对象附加在目标设备对象之上</span></span><br><span class="line">    DevExt-&gt;AttachedToDevice = IoAttachDeviceToDeviceStack(</span><br><span class="line">        FilterDevice, PhysicalDevice);</span><br><span class="line">    <span class="keyword">if</span> (DeviceExtension-&gt;AttachedToDevice == <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        ExFreePool(AttachEntry);</span><br><span class="line">        IoDeleteDevice(FilterDevice);</span><br><span class="line">        <span class="keyword">return</span> STATUS_UNSUCCESSFUL;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 清除过滤设备初始化标记</span></span><br><span class="line">    FilterDevice-&gt;Flags &amp;= ~DO_DEVICE_INITIALIZING;</span><br><span class="line">    <span class="comment">// 添加到链表中</span></span><br><span class="line">    KeAcquireSpinLock(&amp;AttachLock, &amp;OldIrql);</span><br><span class="line">    InsertTailList(&amp;AttachList, &amp;AttachEntry-&gt;Entry);</span><br><span class="line">    KeReleaseSpinLock(&amp;AttachLock, OldIrql);</span><br><span class="line">    <span class="keyword">return</span> STATUS_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里需要注意的是，如果是在 <code>DriverObject-&gt;DriverExtension-&gt;AddDevice</code> 对应的函数中，进行<br>过滤设备的新建和附加，驱动自己会帮我们去除 <code>过滤设备初始化</code> 的标记，而这里需要我们自己手动去除。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/" rel="tag"># 按键过滤</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/07/11/%E6%8C%89%E9%94%AE%E8%BF%87%E6%BB%A4/%E5%BA%94%E7%94%A8%E5%B1%82%E4%BD%BF%E7%94%A8%E9%94%AE%E7%9B%98%E9%92%A9%E5%AD%90%E8%BF%87%E6%BB%A4%E6%8C%89%E9%94%AE-1/" rel="prev" title="应用层使用键盘钩子过滤按键(1)">
+                  <i class="fa fa-chevron-left"></i> 应用层使用键盘钩子过滤按键(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/07/15/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%9C%A8%E6%89%B9%E5%A4%84%E7%90%86%E4%B8%AD%E8%8E%B7%E5%8F%96UAC%E7%AE%A1%E7%90%86%E5%91%98%E6%9D%83%E9%99%90-1/" rel="next" title="在批处理中获取UAC管理员权限(1)">
+                  在批处理中获取UAC管理员权限(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

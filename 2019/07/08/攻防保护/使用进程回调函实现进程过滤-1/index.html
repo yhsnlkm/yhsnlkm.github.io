@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="回调函数的注册和卸载 在VISTA以下的系统中，想要进行进程的保护，只能通过HOOK的方式来实现。 在VISTA及以上的系统中，微软提供了一个 进程回调函数 来实现对 线程 和 进程 进行管理。  1">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用进程回调函实现进程过滤(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/07/08/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8%E8%BF%9B%E7%A8%8B%E5%9B%9E%E8%B0%83%E5%87%BD%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E8%BF%87%E6%BB%A4-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="回调函数的注册和卸载 在VISTA以下的系统中，想要进行进程的保护，只能通过HOOK的方式来实现。 在VISTA及以上的系统中，微软提供了一个 进程回调函数 来实现对 线程 和 进程 进行管理。  1">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-07-08T08:50:05.000Z">
+<meta property="article:modified_time" content="2021-08-05T08:48:10.802Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="攻防保护">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/07/08/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8%E8%BF%9B%E7%A8%8B%E5%9B%9E%E8%B0%83%E5%87%BD%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E8%BF%87%E6%BB%A4-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>使用进程回调函实现进程过滤(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%9B%9E%E8%B0%83%E5%87%BD%E6%95%B0%E7%9A%84%E6%B3%A8%E5%86%8C%E5%92%8C%E5%8D%B8%E8%BD%BD"><span class="nav-number">1.</span> <span class="nav-text">回调函数的注册和卸载</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%93%8D%E4%BD%9C%E7%9A%84%E7%B1%BB%E5%9E%8B%E5%92%8C%E8%A1%8C%E4%B8%BA%E7%9A%84%E5%A4%84%E7%90%86"><span class="nav-number">2.</span> <span class="nav-text">操作的类型和行为的处理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B3%E4%BA%8E%E5%8F%A5%E6%9F%84%E5%A4%8D%E5%88%B6%E6%9D%83%E9%99%90%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">3.</span> <span class="nav-text">关于句柄复制权限的问题</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B3%E4%BA%8E%E8%8E%B7%E5%8F%96%E8%BF%9B%E7%A8%8B%E5%90%8D%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-number">4.</span> <span class="nav-text">关于获取进程名的问题</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%BF%9B%E7%A8%8B%E8%B7%AF%E5%BE%84%E4%B8%AD%E7%9B%98%E7%AC%A6%E7%9A%84%E8%BD%AC%E6%8D%A2"><span class="nav-number">5.</span> <span class="nav-text">进程路径中盘符的转换</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/07/08/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/%E4%BD%BF%E7%94%A8%E8%BF%9B%E7%A8%8B%E5%9B%9E%E8%B0%83%E5%87%BD%E5%AE%9E%E7%8E%B0%E8%BF%9B%E7%A8%8B%E8%BF%87%E6%BB%A4-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          使用进程回调函实现进程过滤(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-07-08 16:50:05" itemprop="dateCreated datePublished" datetime="2019-07-08T16:50:05+08:00">2019-07-08</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-08-05 16:48:10" itemprop="dateModified" datetime="2021-08-05T16:48:10+08:00">2021-08-05</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" itemprop="url" rel="index"><span itemprop="name">攻防保护</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="回调函数的注册和卸载"><a href="#回调函数的注册和卸载" class="headerlink" title="回调函数的注册和卸载"></a>回调函数的注册和卸载</h4><p>在VISTA以下的系统中，想要进行进程的保护，只能通过HOOK的方式来实现。<br>在VISTA及以上的系统中，微软提供了一个 <code>进程回调函数</code> 来实现对 <code>线程</code> 和 <code>进程</code> 进行管理。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">NTSTATUS <span class="title">ObRegisterCallbacks</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  POB_CALLBACK_REGISTRATION CallBackRegistration,</span></span></span><br><span class="line"><span class="function"><span class="params">  _Out_ PVOID                     *RegistrationHandle</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 注册回调</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">ObUnRegisterCallbacks</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ PVOID RegistrationHandle</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 卸载回调</span></span><br></pre></td></tr></table></figure>
+
+<p>在注册时，需要先初始化一个用来描述回调注册信息的结构体</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">OB_CALLBACK_REGISTRATION</span> &#123;</span></span><br><span class="line">  USHORT                    Version;</span><br><span class="line">  USHORT                    OperationRegistrationCount;</span><br><span class="line">  UNICODE_STRING            Altitude;</span><br><span class="line">  PVOID                     RegistrationContext;</span><br><span class="line">  OB_OPERATION_REGISTRATION *OperationRegistration;</span><br><span class="line">&#125; OB_CALLBACK_REGISTRATION, *POB_CALLBACK_REGISTRATION;</span><br></pre></td></tr></table></figure>
+
+<p>在这个结构体中引入了 <code>altitude</code> 的概念，这个参数本身是一个字符串形式表述的数字，<br>微软将其划分为不同的区段，来表示不同的功能，这里使用的是 <code>WDK</code> 例子中使用的 <code>L&quot;321124&quot;</code> ，<br>其参数成员 <code>OB_OPERATION_REGISTRATION</code> 用来定义具体的行为信息，结构体定义如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> _<span class="title">OB_OPERATION_REGISTRATION</span> &#123;</span></span><br><span class="line">  POBJECT_TYPE                *ObjectType;</span><br><span class="line">  OB_OPERATION                Operations;</span><br><span class="line">  POB_PRE_OPERATION_CALLBACK  PreOperation;</span><br><span class="line">  POB_POST_OPERATION_CALLBACK PostOperation;</span><br><span class="line">&#125; OB_OPERATION_REGISTRATION, *POB_OPERATION_REGISTRATION;</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>ObjectType</code> 参数表明我们想要处理的 <code>对象类型</code> ，可取值内容为</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">PsProcessType <span class="comment">// 进程类型</span></span><br><span class="line">PsThreadType <span class="comment">// 线程类型</span></span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>Operations</code> 参数表明我们想要处理的 <code>操作类型</code> ，可取值内容为</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">OB_OPERATION_HANDLE_CREATE <span class="comment">// 创建操作</span></span><br><span class="line">OB_OPERATION_HANDLE_DUPLICATE <span class="comment">// 复制操作</span></span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>PreOperation</code> 表示 <code>动作之前</code> 进行处理，而 <code>PostOperation</code> 表示 <code>动作之后</code> 进行处理</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">OB_PREOP_CALLBACK_STATUS <span class="title">ObjectPreCallback</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ PVOID                         RegistrationContext,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_ POB_PRE_OPERATION_INFORMATION OperationInformation</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 动作之前 函数类型</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">VOID <span class="title">ObjectPostCallback</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  PVOID RegistrationContext,</span></span></span><br><span class="line"><span class="function"><span class="params">  _In_  POB_POST_OPERATION_INFORMATION OperationInformation</span></span></span><br><span class="line"><span class="function"><span class="params">)</span></span>; <span class="comment">// 动作之后 函数类型</span></span><br></pre></td></tr></table></figure>
+
+<p>这里我们只处理 <code>动作之前</code> 的行为，而 <code>动作之后</code> 忽略，设置为 <code>NULL</code> 值，相关代码如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 结构体变量的定义，放到函数的开头</span></span><br><span class="line">OB_OPERATION_REGISTRATION OperationRegister = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">OB_CALLBACK_REGISTRATION CallbackRegister = &#123; <span class="number">0</span> &#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化OB_OPERATION_REGISTRATION结构体</span></span><br><span class="line">OperationRegister.ObjectType = PsProcessType;</span><br><span class="line">OperationRegister.Operations = OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE;</span><br><span class="line">OperationRegister.PreOperation = ProcPreOperation;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 初始化OB_CALLBACK_REGISTRATION结构体</span></span><br><span class="line">CallbackRegister.Version = OB_FLT_REGISTRATION_VERSION;</span><br><span class="line">CallbackRegister.OperationRegistrationCount = <span class="number">1</span>;</span><br><span class="line">RtlInitUnicodeString(&amp;CallbackRegister.Altitude, <span class="string">L&quot;321124&quot;</span>);</span><br><span class="line">CallbackRegister.OperationRegistration = &amp;OperationRegister;</span><br></pre></td></tr></table></figure>
+
+<h4 id="操作的类型和行为的处理"><a href="#操作的类型和行为的处理" class="headerlink" title="操作的类型和行为的处理"></a>操作的类型和行为的处理</h4><p>在 <code>动作之前</code> 的处理函数中，我们可以通过取消句柄的退出权限，来阻止进程被退出</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">OB_PREOP_CALLBACK_STATUS <span class="title">ProcPreOperation</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    IN PVOID Context,</span></span></span><br><span class="line"><span class="function"><span class="params">    IN POB_PRE_OPERATION_INFORMATION PreOperInfo)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    UNREFERENCED_PARAMETER(Context);</span><br><span class="line">    <span class="comment">// 判断对象类型是不是进程类型</span></span><br><span class="line">    (PreOperInfo-&gt;ObjectType != *PsProcessType);</span><br><span class="line">    <span class="comment">// 本次操作对应的进程</span></span><br><span class="line">    PsGetCurrentProcessId();</span><br><span class="line">    <span class="comment">// 判断操作的进程是不是当前进程自己</span></span><br><span class="line">    ((PEPROCESS)(PreOperInfo-&gt;Object) == PsGetCurrentProcess());</span><br><span class="line">    <span class="comment">// 判断对进程的操作类型</span></span><br><span class="line">    <span class="keyword">if</span> (PreOperInfo-&gt;Operation == OB_OPERATION_HANDLE_CREATE) <span class="comment">// 句柄创建</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 如果存在退出权限，则取消退出权限PROCESS_TERMINATE</span></span><br><span class="line">        <span class="keyword">if</span> (PreOperInfo-&gt;Parameters-&gt;CreateHandleInformation.OriginalDesiredAccess &amp; <span class="number">0x0001</span>)</span><br><span class="line">            PreOperInfo-&gt;Parameters-&gt;CreateHandleInformation.DesiredAccess &amp;= ~<span class="number">0x0001</span>;</span><br><span class="line">        <span class="comment">// 如果存在句柄复制权限，则取消句柄复制权限PROCESS_DUP_HANDLE</span></span><br><span class="line">        <span class="keyword">if</span> (PreOperInfo-&gt;Parameters-&gt;CreateHandleInformation.OriginalDesiredAccess &amp; <span class="number">0x0040</span>)</span><br><span class="line">            PreOperInfo-&gt;Parameters-&gt;CreateHandleInformation.DesiredAccess &amp;= ~<span class="number">0x0040</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (PreOperInfo-&gt;Operation == OB_OPERATION_HANDLE_DUPLICATE) <span class="comment">// 句柄复制</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 如果存在退出权限，则取消退出权限PROCESS_TERMINATE</span></span><br><span class="line">        <span class="keyword">if</span> (PreOperInfo-&gt;Parameters-&gt;DuplicateHandleInformation.OriginalDesiredAccess &amp; <span class="number">0x0001</span>)</span><br><span class="line">            PreOperInfo-&gt;Parameters-&gt;DuplicateHandleInformation.DesiredAccess &amp;= ~<span class="number">0x0001</span>;</span><br><span class="line">        <span class="comment">// 如果存在句柄复制权限，则取消句柄复制权限PROCESS_DUP_HANDLE</span></span><br><span class="line">        <span class="keyword">if</span> (PreOperInfo-&gt;Parameters-&gt;DuplicateHandleInformation.OriginalDesiredAccess &amp; <span class="number">0x0040</span>)</span><br><span class="line">            PreOperInfo-&gt;Parameters-&gt;DuplicateHandleInformation.DesiredAccess &amp;= ~<span class="number">0x0040</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> OB_PREOP_SUCCESS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="关于句柄复制权限的问题"><a href="#关于句柄复制权限的问题" class="headerlink" title="关于句柄复制权限的问题"></a>关于句柄复制权限的问题</h4><p>在以上的代码中，我们可以看到，只是做自保护防退出，为什么连 <code>句柄复制</code> 权限都要取消？<br>这是因为从WIN8开始，操作系统的 <code>任务管理器</code> 发生了很大的变化，尽管只是取消 <code>退出权限</code> 就能实现<br>自保护，但是之后会发生CPU占用率飙升到100%的现象。</p>
+<p>经过用WINDBG和IDA对新的任务管理器进行分析后，发现在结束进程时，任务管理器会首先使用<br><code>DuplicateHandle</code> 函数复制要结束进程的句柄，然后使用 <code>QueueUserWorkItem</code> 线程池函数，来运行<br>退出的代码，就是这个线程池函数导致CPU占用率飙升到了100%。所以在它之前，我们取消 <code>句柄复制</code><br>的权限，任务管理器在复制句柄时失败，就不会再调用线程池函数。</p>
+<h4 id="关于获取进程名的问题"><a href="#关于获取进程名的问题" class="headerlink" title="关于获取进程名的问题"></a>关于获取进程名的问题</h4><p>判断进程是不是我们想要保护的进程时，需要获取进程的全路径，一般使用 <code>ZwQueryInformationProcess</code><br>函数来获取进程的全路径。这就产生一个问题，调用这个函数会触发 <code>进程回调</code> 行为，从而再次进入回调函数<br>中，造成了函数调用的重入问题（<code>注：在Win10系统上，已变为从当前回调的下一个回调继续调用，所以就不会再出现</code><br><code>重入的问题。在注册表回调中操作注册表时，也是相同的处理方式，不会出现重入。</code>）</p>
+<p>通过查看WRK1.2源码和IDA进行分析，发现这个函数会调用一次 <code>ObReferenceObjectByHandle</code> 函数，正是<br>这个引用句柄的函数导致了重入。接着再往下分析，找到是<code>SeLocateProcessImageName</code> 这个函数读取的进程<br>路径，把 <code>ntoskrnl.exe</code> 拖到PE工具里看一下导出表，正好导出了这个函数，我们直接声明这个函数的定义，<br>就可以使用了，使用这个函数不会触发重入问题。但需要注意的是，我们需要手动释放其返回的内存空间。</p>
+<p>另外我们还可以先使用 <code>PsReferenceProcessFilePointer</code> 获取进程的文件对象，然后再根据文件对象使用<br><code>IoQueryFileDosDeviceName</code> 查询对应的路径。因为涉及到磁盘读写操作，查询速度较慢，频繁查询会卡顿，<br>就需要把查询过的EPROCESS缓存起来，加快处理速度。</p>
+<h4 id="进程路径中盘符的转换"><a href="#进程路径中盘符的转换" class="headerlink" title="进程路径中盘符的转换"></a>进程路径中盘符的转换</h4><p>在以上操作中获取到的进程路径，有可能并不是我们常见的 <code>C:\\</code> 盘符的形式，<br>而是 <code>\\Device\\HarddiskVolume1\\</code> 这种卷的形式，所以还需要我们对其进行转换<br>在XP中可以使用 <code>RtlVolumeDeviceToDosName</code> 和在VISTA中使用 <code>IoVolumeDeviceToDosName</code><br>来查询设备对象的盘符路径，这里使用的是 <code>查询符号链接</code> 的方式来进行转换 </p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">WCHAR <span class="title">GetDosNameWideChar</span><span class="params">(PUNICODE_STRING Volume)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    WCHAR Ch = <span class="string">L&#x27;A&#x27;</span>; <span class="comment">// 盘符变量</span></span><br><span class="line">    WCHAR DosBuffer[<span class="number">20</span>] = &#123; <span class="number">0</span> &#125;;  <span class="comment">// L&quot;\\??\\C:&quot;</span></span><br><span class="line">    UNICODE_STRING DosName = &#123; <span class="number">0</span> &#125;; <span class="comment">// 查询用盘符名称</span></span><br><span class="line">    WCHAR VolumeBuffer[<span class="number">40</span>] = &#123; <span class="number">0</span> &#125;;  <span class="comment">// L&quot;\\Device\\HarddiskVolume1&quot;</span></span><br><span class="line">    UNICODE_STRING VolumeName = &#123; <span class="number">0</span> &#125;; <span class="comment">// 查询用卷标名称</span></span><br><span class="line">    HANDLE LinkHandle = <span class="literal">NULL</span>; <span class="comment">// 卷名查询盘符所用句柄</span></span><br><span class="line">    OBJECT_ATTRIBUTES ObjectAttributes = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    NTSTATUS Status = STATUS_SUCCESS;</span><br><span class="line">    <span class="comment">// 检查参数是否有效</span></span><br><span class="line">    <span class="keyword">if</span> (Volume == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="string">L&#x27;\0&#x27;</span>;</span><br><span class="line">    <span class="keyword">if</span> (Volume-&gt;Buffer == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="string">L&#x27;\0&#x27;</span>;</span><br><span class="line">    <span class="comment">// 初始化 UNICODE_STRING</span></span><br><span class="line">    DosName.Buffer = DosBuffer;</span><br><span class="line">    DosName.Length = <span class="number">0</span>;</span><br><span class="line">    DosName.MaximumLength = <span class="keyword">sizeof</span>(DosBuffer);</span><br><span class="line">    VolumeName.Buffer = VolumeBuffer;</span><br><span class="line">    VolumeName.Length = <span class="number">0</span>;</span><br><span class="line">    VolumeName.MaximumLength = <span class="keyword">sizeof</span>(VolumeBuffer);</span><br><span class="line">    <span class="comment">// 组合盘符名称</span></span><br><span class="line">    RtlCopyMemory(DosName.Buffer, <span class="string">L&quot;\\??\\C:&quot;</span>, <span class="keyword">sizeof</span>(<span class="string">L&quot;\\??\\C:&quot;</span>));</span><br><span class="line">    DosName.Length = <span class="keyword">sizeof</span>(<span class="string">L&quot;\\??\\C:&quot;</span>) - <span class="keyword">sizeof</span>(<span class="string">L&#x27;\0&#x27;</span>);</span><br><span class="line">    <span class="comment">// 检查IRQL是否符合接下来的操作</span></span><br><span class="line">    <span class="keyword">if</span> (KeGetCurrentIrql() &gt; PASSIVE_LEVEL) <span class="keyword">return</span> <span class="string">L&#x27;\0&#x27;</span>;</span><br><span class="line">    <span class="comment">// 循环检测盘符</span></span><br><span class="line">    <span class="keyword">for</span> (Ch = <span class="string">L&#x27;A&#x27;</span>; Ch &lt;= <span class="string">L&#x27;Z&#x27;</span>; ++Ch)</span><br><span class="line">    &#123;</span><br><span class="line">        DosName.Buffer[<span class="number">4</span>] = Ch; <span class="comment">// 改变盘符</span></span><br><span class="line">        InitializeObjectAttributes(&amp;ObjectAttributes, &amp;DosName, OBJ_KERNEL_HANDLE, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="comment">// 打开盘符链接名称</span></span><br><span class="line">        Status = ZwOpenSymbolicLinkObject(&amp;LinkHandle, GENERIC_READ, &amp;ObjectAttributes);</span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">continue</span>; <span class="comment">// 打开失败则跳过</span></span><br><span class="line">        <span class="comment">// 查询盘符链接名称对应的驱动器名称</span></span><br><span class="line">        Status = ZwQuerySymbolicLinkObject(LinkHandle, &amp;VolumeName, <span class="literal">NULL</span>);</span><br><span class="line">        ZwClose(LinkHandle); <span class="comment">// 句柄使用结束</span></span><br><span class="line">        <span class="keyword">if</span> (!NT_SUCCESS(Status)) <span class="keyword">continue</span>; <span class="comment">// 查询失败则跳过</span></span><br><span class="line">        <span class="comment">// 比较是不是对应的驱动器名称</span></span><br><span class="line">        <span class="keyword">if</span> (RtlCompareUnicodeString(&amp;VolumeName, Volume, TRUE) == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">return</span> Ch; <span class="comment">// 返回盘符</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="string">L&#x27;\0&#x27;</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E6%94%BB%E9%98%B2%E4%BF%9D%E6%8A%A4/" rel="tag"># 攻防保护</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/07/08/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8VMWARE%E8%B0%83%E8%AF%95%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA-2/" rel="prev" title="内核驱动VMWARE调试环境搭建(2)">
+                  <i class="fa fa-chevron-left"></i> 内核驱动VMWARE调试环境搭建(2)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/07/10/%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5/%E7%94%A8NetUser%E5%87%BD%E6%95%B0%E4%BF%AE%E6%94%B9%E5%AF%86%E7%A0%81%E7%AD%96%E7%95%A5-2/" rel="next" title="用NetUser函数修改密码策略(2)">
+                  用NetUser函数修改密码策略(2) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

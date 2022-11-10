@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.14.0/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/animate.css@3.1.1/animate.min.css">
+
+<script class="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yhsnlkm.github.io","root":"/","scheme":"Pisces","version":"8.0.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12},"copycode":false,"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"search.xml","localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false}};
+  </script>
+
+  <meta name="description" content="简介 有时我们需要跟随操作系统启动某些程序，常见的做法是创建服务程序，然后使用 SYSTEM 权限来启动其他程序  控制服务的代码 服务的启动停止，可以直接使用 sc.exe 或者 net.exe 指">
+<meta property="og:type" content="article">
+<meta property="og:title" content="在服务程序中启动其他程序(1)">
+<meta property="og:url" content="https://yhsnlkm.github.io/2019/08/14/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%9C%A8%E6%9C%8D%E5%8A%A1%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%90%AF%E5%8A%A8%E5%85%B6%E4%BB%96%E7%A8%8B%E5%BA%8F-1/index.html">
+<meta property="og:site_name" content="Study Notes">
+<meta property="og:description" content="简介 有时我们需要跟随操作系统启动某些程序，常见的做法是创建服务程序，然后使用 SYSTEM 权限来启动其他程序  控制服务的代码 服务的启动停止，可以直接使用 sc.exe 或者 net.exe 指">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2019-08-14T03:28:22.000Z">
+<meta property="article:modified_time" content="2021-12-06T03:31:39.106Z">
+<meta property="article:author" content="Yang He">
+<meta property="article:tag" content="基础知识">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="https://yhsnlkm.github.io/2019/08/14/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%9C%A8%E6%9C%8D%E5%8A%A1%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%90%AF%E5%8A%A8%E5%85%B6%E4%BB%96%E7%A8%8B%E5%BA%8F-1/">
+
+
+<script class="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>在服务程序中启动其他程序(1) | Study Notes</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  body { margin-top: 2rem; }
+
+  .use-motion .menu-item,
+  .use-motion .sidebar,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header {
+    visibility: visible;
+  }
+
+  .use-motion .header,
+  .use-motion .site-brand-container .toggle,
+  .use-motion .footer { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle,
+  .use-motion .custom-logo-image {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line {
+    transform: scaleX(1);
+  }
+
+  .search-pop-overlay, .sidebar-nav { display: none; }
+  .sidebar-panel { display: block; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <h1 class="site-title">Study Notes</h1>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off" maxlength="80"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div class="search-result-container no-result">
+  <div class="search-result-icon">
+    <i class="fa fa-spinner fa-pulse fa-5x"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+        
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <section class="post-toc-wrap sidebar-panel">
+          <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E4%BB%8B"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%8E%A7%E5%88%B6%E6%9C%8D%E5%8A%A1%E7%9A%84%E4%BB%A3%E7%A0%81"><span class="nav-number">2.</span> <span class="nav-text">控制服务的代码</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%AE%89%E8%A3%85"><span class="nav-number">2.1.</span> <span class="nav-text">服务安装</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%90%AF%E5%8A%A8"><span class="nav-number">2.2.</span> <span class="nav-text">服务启动</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%81%9C%E6%AD%A2"><span class="nav-number">2.3.</span> <span class="nav-text">服务停止</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%8D%B8%E8%BD%BD"><span class="nav-number">2.4.</span> <span class="nav-text">服务卸载</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E7%A4%BA%E4%BE%8B"><span class="nav-number">3.</span> <span class="nav-text">应用程序的示例</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%A4%B4%E6%96%87%E4%BB%B6"><span class="nav-number">3.1.</span> <span class="nav-text">头文件</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F"><span class="nav-number">3.2.</span> <span class="nav-text">全局变量</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E5%87%BD%E6%95%B0"><span class="nav-number">3.3.</span> <span class="nav-text">其他函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9C%8D%E5%8A%A1%E5%87%BD%E6%95%B0"><span class="nav-number">3.4.</span> <span class="nav-text">服务函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%B8%BB%E5%87%BD%E6%95%B0"><span class="nav-number">3.5.</span> <span class="nav-text">主函数</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B6%E4%BB%96%E4%BA%8B%E9%A1%B9"><span class="nav-number">4.</span> <span class="nav-text">其他事项</span></a></li></ol></div>
+      </section>
+      <!--/noindex-->
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Yang He"
+      src="/images/avatar.gif">
+  <p class="site-author-name" itemprop="name">Yang He</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">70</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yhsnlkm" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yhsnlkm" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </section>
+    </div>
+  </aside>
+  <div class="sidebar-dimmer"></div>
+
+
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+
+    <div class="main-inner post posts-expand">
+      
+
+      
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://yhsnlkm.github.io/2019/08/14/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/%E5%9C%A8%E6%9C%8D%E5%8A%A1%E7%A8%8B%E5%BA%8F%E4%B8%AD%E5%90%AF%E5%8A%A8%E5%85%B6%E4%BB%96%E7%A8%8B%E5%BA%8F-1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Yang He">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Study Notes">
+    </span>
+
+    
+    
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          在服务程序中启动其他程序(1)
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2019-08-14 11:28:22" itemprop="dateCreated datePublished" datetime="2019-08-14T11:28:22+08:00">2019-08-14</time>
+    </span>
+      <span class="post-meta-item">
+        <span class="post-meta-item-icon">
+          <i class="far fa-calendar-check"></i>
+        </span>
+        <span class="post-meta-item-text">更新于</span>
+        <time title="修改时间：2021-12-06 11:31:39" itemprop="dateModified" datetime="2021-12-06T11:31:39+08:00">2021-12-06</time>
+      </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" itemprop="url" rel="index"><span itemprop="name">基础知识</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+        <h4 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h4><p>有时我们需要跟随操作系统启动某些程序，常见的做法是创建服务程序，然后使用 <code>SYSTEM</code> 权限来启动其他程序</p>
+<h4 id="控制服务的代码"><a href="#控制服务的代码" class="headerlink" title="控制服务的代码"></a>控制服务的代码</h4><p>服务的启动停止，可以直接使用 <code>sc.exe</code> 或者 <code>net.exe</code> 指令进行控制，比如使用 <code>sc stop dhcp</code> 来<br>停止 <code>dhcp</code> 服务，有时候停止服务时，会提示我们是否结束依赖项，使用 <code>net stop dhcp /y</code> 命令，可以<br>自动结束 <code>dhcp</code> 的依赖项。除此之外，我们还可以使用SDK提供的API来进行控制，如下为相关控制代码</p>
+<h5 id="服务安装"><a href="#服务安装" class="headerlink" title="服务安装"></a>服务安装</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">ServiceInstall</span><span class="params">(PCSTR pName, PCSTR pPath)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 检查参数</span></span><br><span class="line">    <span class="keyword">if</span> (pName == <span class="literal">NULL</span>) || (pPath == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务管理器</span></span><br><span class="line">    SC_HANDLE hSCM = OpenSCManager(<span class="literal">NULL</span>, <span class="literal">NULL</span>, SC_MANAGER_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hSCM == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 创建服务  </span></span><br><span class="line">    SC_HANDLE hService = CreateService(</span><br><span class="line">        hSCM, pName, pPath, SERVICE_ALL_ACCESS,</span><br><span class="line">        SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS,</span><br><span class="line">        SERVICE_AUTO_START, SERVICE_ERROR_NORMAL,</span><br><span class="line">        pPath, <span class="literal">NULL</span>, <span class="literal">NULL</span>, <span class="string">&quot;&quot;</span>, <span class="literal">NULL</span>, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (hService == <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 检测服务是否已经创建</span></span><br><span class="line">        <span class="keyword">if</span> (GetLastError() == ERROR_SERVICE_EXISTS)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(hSCM);</span><br><span class="line">            <span class="keyword">return</span> TRUE;</span><br><span class="line">        &#125;</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    CloseServiceHandle(hService);</span><br><span class="line">    CloseServiceHandle(hSCM);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="服务启动"><a href="#服务启动" class="headerlink" title="服务启动"></a>服务启动</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">ServiceStart</span><span class="params">(PCSTR pName)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 检查参数</span></span><br><span class="line">    <span class="keyword">if</span> (pName == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务控制管理器</span></span><br><span class="line">    SC_HANDLE hSCM = OpenSCManager(<span class="literal">NULL</span>, <span class="literal">NULL</span>, SC_MANAGER_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hSCM == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务</span></span><br><span class="line">    SC_HANDLE hService = OpenService(hSCM, m_csName.GetBuffer(), SERVICE_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hService != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 先查询服务状态</span></span><br><span class="line">    DWORD needsize = <span class="number">0</span>;</span><br><span class="line">    SERVICE_STATUS_PROCESS ssp;</span><br><span class="line">    BOOL success = QueryServiceStatusEx(hService, SC_STATUS_PROCESS_INFO,</span><br><span class="line">        (PBYTE)(&amp;ssp), <span class="keyword">sizeof</span>(SERVICE_STATUS_PROCESS), &amp;needsize);</span><br><span class="line">    <span class="keyword">if</span> (!success)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseServiceHandle(hService);</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 等待pending的动作</span></span><br><span class="line">    DWORD dwOldCheckPoint = ssp.dwCheckPoint;</span><br><span class="line">    <span class="keyword">while</span> ((ssp.dwCurrentState == SERVICE_START_PENDING) ||</span><br><span class="line">        (ssp.dwCurrentState == SERVICE_STOP_PENDING))</span><br><span class="line">    &#123;</span><br><span class="line">        Sleep(ssp.dwWaitHint); <span class="comment">// 休眠预估的时间</span></span><br><span class="line">        success = QueryServiceStatusEx(hService, SC_STATUS_PROCESS_INFO,</span><br><span class="line">            (PBYTE)(&amp;ssp), <span class="keyword">sizeof</span>(SERVICE_STATUS_PROCESS), &amp;needsize);</span><br><span class="line">        <span class="keyword">if</span> (!success)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(hService);</span><br><span class="line">            CloseServiceHandle(hSCM);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检查pending是否结束</span></span><br><span class="line">        <span class="keyword">if</span> ((ssp.dwCurrentState != SERVICE_START_PENDING) &amp;&amp;</span><br><span class="line">            (ssp.dwCurrentState != SERVICE_STOP_PENDING)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 检查是否超时</span></span><br><span class="line">        <span class="keyword">if</span> (ssp.dwCheckPoint == dwOldCheckPoint) <span class="keyword">break</span>;</span><br><span class="line">        dwOldCheckPoint = ssp.dwCheckPoint;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 启动服务</span></span><br><span class="line">    <span class="keyword">if</span> (ssp.dwCurrentState == SERVICE_STOPPED)</span><br><span class="line">    &#123;</span><br><span class="line">        success = StartService(hService, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">        <span class="keyword">if</span> (!success)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(hService);</span><br><span class="line">            CloseServiceHandle(hSCM);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    CloseServiceHandle(hService);</span><br><span class="line">    CloseServiceHandle(hSCM);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="服务停止"><a href="#服务停止" class="headerlink" title="服务停止"></a>服务停止</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">StopDepend</span><span class="params">(SC_HANDLE hSCM, SC_HANDLE hService)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> ((hSCM == <span class="literal">NULL</span>) || (hService == <span class="literal">NULL</span>)) <span class="keyword">return</span> FALSE;</span><br><span class="line">    DWORD count = <span class="number">0</span>;</span><br><span class="line">    DWORD needsize = <span class="number">0</span>;</span><br><span class="line">    LPENUM_SERVICE_STATUS pDepend = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 查询依赖服务</span></span><br><span class="line">    BOOL success = EnumDependentServices(hSCM,</span><br><span class="line">        SERVICE_ACTIVE, pDepend, <span class="number">0</span>, &amp;needsize, &amp;count);</span><br><span class="line">    <span class="keyword">if</span> (success) <span class="keyword">return</span> TRUE; <span class="comment">// 无依赖服务</span></span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (GetLastError() != ERROR_MORE_DATA) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 申请内存空间</span></span><br><span class="line">    pDepend = (LPENUM_SERVICE_STATUS)<span class="built_in">malloc</span>(needsize);</span><br><span class="line">    <span class="keyword">if</span> (pDepend == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="built_in">memset</span>(pDepend, <span class="number">0</span>, needsize);</span><br><span class="line">    <span class="comment">// 再次查询依赖服务</span></span><br><span class="line">    success = EnumDependentServices(hSCM,</span><br><span class="line">        SERVICE_ACTIVE, pDepend, needsize, &amp;needsize, &amp;count);</span><br><span class="line">    <span class="keyword">if</span> (!success)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="built_in">free</span>(pDepend);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 循环停止依赖服务</span></span><br><span class="line">    SC_HANDLE handle = <span class="literal">NULL</span>;</span><br><span class="line">    DWORD dwOldCheckPoint = <span class="number">0</span>;</span><br><span class="line">    SERVICE_STATUS_PROCESS ssp;</span><br><span class="line">    <span class="keyword">for</span> (DWORD i = <span class="number">0</span>; i &lt; count; ++i)</span><br><span class="line">    &#123;</span><br><span class="line">        handle = OpenService(hSCM, (pDepend + i)-&gt;lpServiceName, SERVICE_ALL_ACCESS);</span><br><span class="line">        <span class="keyword">if</span> (handle == <span class="literal">NULL</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="built_in">free</span>(pDepend);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">        success = ControlService(handle, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)(&amp;ssp));</span><br><span class="line">        <span class="keyword">if</span> (!success)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(handle);</span><br><span class="line">            <span class="built_in">free</span>(pDepend);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 等待停止完成</span></span><br><span class="line">        <span class="keyword">while</span> (ssp.dwCurrentState != SERVICE_STOPPED)</span><br><span class="line">        &#123;</span><br><span class="line">            Sleep(ssp.dwWaitHint); <span class="comment">// 休眠预估的时间</span></span><br><span class="line">            success = QueryServiceStatusEx(hService, SC_STATUS_PROCESS_INFO,</span><br><span class="line">                (PBYTE)(&amp;ssp), <span class="keyword">sizeof</span>(SERVICE_STATUS_PROCESS), &amp;needsize);</span><br><span class="line">            <span class="keyword">if</span> (!success)</span><br><span class="line">            &#123;</span><br><span class="line">                CloseServiceHandle(handle);</span><br><span class="line">                <span class="built_in">free</span>(pDepend);</span><br><span class="line">                <span class="keyword">return</span> TRUE;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> (ssp.dwCurrentState == SERVICE_STOPPED) <span class="keyword">break</span>; <span class="comment">// while</span></span><br><span class="line">            <span class="comment">// 检查是否超时</span></span><br><span class="line">            <span class="keyword">if</span> (ssp.dwCheckPoint == dwOldCheckPoint)</span><br><span class="line">            &#123;</span><br><span class="line">                CloseServiceHandle(handle);</span><br><span class="line">                <span class="built_in">free</span>(pDepend);</span><br><span class="line">                <span class="keyword">return</span> TRUE;</span><br><span class="line">            &#125;</span><br><span class="line">            dwOldCheckPoint = ssp.dwCheckPoint;</span><br><span class="line">        &#125;</span><br><span class="line">        CloseServiceHandle(handle);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="built_in">free</span>(pDepend);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">ServiceStop</span><span class="params">(PCSTR pName)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (pName == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务控制管理器</span></span><br><span class="line">    SC_HANDLE hSCM = OpenSCManager(<span class="literal">NULL</span>, <span class="literal">NULL</span>, SC_MANAGER_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hSCM == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务</span></span><br><span class="line">    SC_HANDLE hService = OpenService(hSCM, m_csName.GetBuffer(), SERVICE_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hService != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 先查询服务状态</span></span><br><span class="line">    DWORD needsize = <span class="number">0</span>;</span><br><span class="line">    SERVICE_STATUS_PROCESS ssp;</span><br><span class="line">    BOOL success = QueryServiceStatusEx(hService, SC_STATUS_PROCESS_INFO,</span><br><span class="line">        (PBYTE)(&amp;ssp), <span class="keyword">sizeof</span>(SERVICE_STATUS_PROCESS), &amp;needsize);</span><br><span class="line">    <span class="keyword">if</span> (!success)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseServiceHandle(hService);</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 等待pending的动作</span></span><br><span class="line">    DWORD dwOldCheckPoint = ssp.dwCheckPoint;</span><br><span class="line">    <span class="keyword">while</span> ((ssp.dwCurrentState == SERVICE_START_PENDING) ||</span><br><span class="line">        (ssp.dwCurrentState == SERVICE_STOP_PENDING))</span><br><span class="line">    &#123;</span><br><span class="line">        Sleep(ssp.dwWaitHint); <span class="comment">// 休眠预估的时间</span></span><br><span class="line">        success = QueryServiceStatusEx(hService, SC_STATUS_PROCESS_INFO,</span><br><span class="line">            (PBYTE)(&amp;ssp), <span class="keyword">sizeof</span>(SERVICE_STATUS_PROCESS), &amp;needsize);</span><br><span class="line">        <span class="keyword">if</span> (!success)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(hService);</span><br><span class="line">            CloseServiceHandle(hSCM);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 检查pending是否结束</span></span><br><span class="line">        <span class="keyword">if</span> ((ssp.dwCurrentState != SERVICE_START_PENDING) &amp;&amp;</span><br><span class="line">            (ssp.dwCurrentState != SERVICE_STOP_PENDING)) <span class="keyword">break</span>;</span><br><span class="line">        <span class="comment">// 检查是否超时</span></span><br><span class="line">        <span class="keyword">if</span> (ssp.dwCheckPoint == dwOldCheckPoint) <span class="keyword">break</span>;</span><br><span class="line">        dwOldCheckPoint = ssp.dwCheckPoint;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 停止服务</span></span><br><span class="line">    <span class="keyword">if</span> (ssp.dwCurrentState == SERVICE_RUNNING)</span><br><span class="line">    &#123;</span><br><span class="line">        SERVICE_STATUS status;</span><br><span class="line">        success = StopDepend(hSCM, hService); <span class="comment">// 停止依赖服务</span></span><br><span class="line">        <span class="keyword">if</span> (!success)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(hService);</span><br><span class="line">            CloseServiceHandle(hSCM);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">        success = ControlService(hService, SERVICE_CONTROL_STOP, &amp;status);</span><br><span class="line">        <span class="keyword">if</span> (!success)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseServiceHandle(hService);</span><br><span class="line">            CloseServiceHandle(hSCM);</span><br><span class="line">            <span class="keyword">return</span> FALSE;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    CloseServiceHandle(hService);</span><br><span class="line">    CloseServiceHandle(hSCM);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="服务卸载"><a href="#服务卸载" class="headerlink" title="服务卸载"></a>服务卸载</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">ServiceUninstall</span><span class="params">(PCSTR pName)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (pName == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务控制管理器</span></span><br><span class="line">    SC_HANDLE hSCM = OpenSCManager(<span class="literal">NULL</span>, <span class="literal">NULL</span>, SC_MANAGER_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hSCM == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 打开服务</span></span><br><span class="line">    SC_HANDLE hService = OpenService(hSCM, m_csName.GetBuffer(), SERVICE_ALL_ACCESS);</span><br><span class="line">    <span class="keyword">if</span> (hService != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 卸载服务</span></span><br><span class="line">    <span class="keyword">if</span> (DeleteService(hService))</span><br><span class="line">    &#123;</span><br><span class="line">        CloseServiceHandle(hService);</span><br><span class="line">        CloseServiceHandle(hSCM);</span><br><span class="line">        <span class="keyword">return</span> TRUE;</span><br><span class="line">    &#125;</span><br><span class="line">    CloseServiceHandle(hService);</span><br><span class="line">    CloseServiceHandle(hSCM);</span><br><span class="line">    <span class="keyword">return</span> FALSE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="应用程序的示例"><a href="#应用程序的示例" class="headerlink" title="应用程序的示例"></a>应用程序的示例</h4><p>当我们需要常驻运行某个程序时，可以在服务中定时轮询检测并启动。如下为实例程序代码</p>
+<h5 id="头文件"><a href="#头文件" class="headerlink" title="头文件"></a>头文件</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;tlhelp32.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;shellapi.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;userenv.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> comment(lib, <span class="meta-string">&quot;userenv.lib&quot;</span>)</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">include</span> <span class="meta-string">&lt;wtsapi32.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">pragma</span> comment(lib, <span class="meta-string">&quot;wtsapi32.lib&quot;</span>)</span></span><br></pre></td></tr></table></figure>
+
+<h5 id="全局变量"><a href="#全局变量" class="headerlink" title="全局变量"></a>全局变量</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 全局变量</span></span><br><span class="line">SERVICE_STATUS g_svcStatus = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">SERVICE_STATUS_HANDLE g_hSvcStatus = <span class="literal">NULL</span>;</span><br><span class="line">OSVERSIONINFO g_osVersion = &#123; <span class="number">0</span> &#125;;</span><br></pre></td></tr></table></figure>
+
+<h5 id="其他函数"><a href="#其他函数" class="headerlink" title="其他函数"></a>其他函数</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD <span class="title">GetPidByName</span><span class="params">(IN PCSTR pName)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (pName == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    PROCESSENTRY32 pe = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    pe.dwSize = <span class="keyword">sizeof</span>(PROCESSENTRY32);</span><br><span class="line">    <span class="comment">// 创建进程快照</span></span><br><span class="line">    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (hSnapshot == INVALID_HANDLE_VALUE) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 获取首个进程信息</span></span><br><span class="line">    <span class="keyword">if</span> (!Process32First(hSnapshot, &amp;pe))</span><br><span class="line">    &#123;</span><br><span class="line">        CloseHandle(hSnapshot);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 循环遍历进程</span></span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (_stricmp(pName, pe.szExeFile) == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            CloseHandle(hSnapshot);</span><br><span class="line">            <span class="keyword">return</span> pe.th32ProcessID;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="built_in">memset</span>(&amp;pe, <span class="number">0</span>, <span class="keyword">sizeof</span>(PROCESSENTRY32));</span><br><span class="line">        pe.dwSize = <span class="keyword">sizeof</span>(PROCESSENTRY32);</span><br><span class="line">    &#125; <span class="keyword">while</span> (Process32Next(hSnapshot, &amp;pe));</span><br><span class="line">    CloseHandle(hSnapshot);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">BOOL <span class="title">VistaStartProcess</span><span class="params">(IN PSTR pCmdLine)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (pCmdLine == <span class="literal">NULL</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 获取活动控制台会话</span></span><br><span class="line">    DWORD dwSessionId = WTSGetActiveConsoleSessionId();</span><br><span class="line">    <span class="keyword">if</span> (dwSessionId == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 获取指定(会话/进程)令牌信息</span></span><br><span class="line">    HANDLE hToken = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">if</span> (!WTSQueryUserToken(dwSessionId, &amp;hToken)) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="keyword">if</span> (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &amp;hToken)) <span class="keyword">return</span> FALSE;</span><br><span class="line">    <span class="comment">// 复制到新令牌</span></span><br><span class="line">    HANDLE hTokenDup = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="keyword">if</span> (!DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, <span class="literal">NULL</span>,</span><br><span class="line">        SecurityIdentification, TokenPrimary, &amp;hTokenDup))</span><br><span class="line">    &#123;</span><br><span class="line">        CloseHandle(hToken);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 如果需要，修改新令牌的会话信息</span></span><br><span class="line">    <span class="keyword">if</span> (!SetTokenInformation(hTokenDup, TokenSessionId, &amp;dwSessionId, <span class="keyword">sizeof</span>(DWORD)))</span><br><span class="line">    &#123;</span><br><span class="line">        CloseHandle(hTokenDup);</span><br><span class="line">        CloseHandle(hToken);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 关闭旧令牌句柄</span></span><br><span class="line">    CloseHandle(hToken);</span><br><span class="line">    <span class="comment">// 创建环境变量块</span></span><br><span class="line">    LPVOID pEnv = <span class="literal">NULL</span>;</span><br><span class="line">    DWORD dwCreationFlags = NORMAL_PRIORITY_CLASS | CREATE_NEW_CONSOLE;</span><br><span class="line">    <span class="keyword">if</span> (CreateEnvironmentBlock(&amp;pEnv, hTokenDup, TRUE))</span><br><span class="line">        dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        pEnv = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="comment">// 启动进程</span></span><br><span class="line">    STARTUPINFO si = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    si.cb = <span class="keyword">sizeof</span>(STARTUPINFO);</span><br><span class="line">    si.lpDesktop = <span class="string">&quot;winsta0\\default&quot;</span>;</span><br><span class="line">    PROCESS_INFORMATION pi = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="keyword">if</span> (!CreateProcessAsUser(hTokenDup, <span class="literal">NULL</span>, pCmdLine,</span><br><span class="line">        <span class="literal">NULL</span>, <span class="literal">NULL</span>, FALSE, dwCreationFlags, pEnv, <span class="literal">NULL</span>, &amp;si, &amp;pi))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (pEnv != <span class="literal">NULL</span>) DestroyEnvironmentBlock(pEnv);</span><br><span class="line">        CloseHandle(hTokenDup);</span><br><span class="line">        <span class="keyword">return</span> FALSE;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 销毁环境变量块</span></span><br><span class="line">    <span class="keyword">if</span> (pEnv != <span class="literal">NULL</span>) DestroyEnvironmentBlock(pEnv);</span><br><span class="line">    CloseHandle(hTokenDup);</span><br><span class="line">    <span class="keyword">return</span> TRUE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="服务函数"><a href="#服务函数" class="headerlink" title="服务函数"></a>服务函数</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> WINAPI <span class="title">ServiceCtrl</span><span class="params">(DWORD dwOpcode)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 不提供服务控制</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> WINAPI <span class="title">ServiceMain</span><span class="params">(DWORD dwArgc, LPTSTR *lpszArgv)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 注册服务控制函数</span></span><br><span class="line">    g_hSvcStatus = RegisterServiceCtrlHandler(<span class="string">&quot;MyService&quot;</span>, ServiceCtrl);</span><br><span class="line">    <span class="keyword">if</span> (g_hSvcStatus == <span class="literal">NULL</span>) <span class="keyword">return</span>;</span><br><span class="line">    <span class="comment">// 设置服务为pending状态</span></span><br><span class="line">    g_svcStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;</span><br><span class="line">    g_svcStatus.dwCurrentState = SERVICE_START_PENDING;</span><br><span class="line">    g_svcStatus.dwControlsAccepted = <span class="number">0</span>; <span class="comment">// SERVICE_ACCEPT_STOP; // 停止服务变灰</span></span><br><span class="line">    g_svcStatus.dwWin32ExitCode = <span class="number">0</span>;</span><br><span class="line">    g_svcStatus.dwServiceSpecificExitCode = <span class="number">0</span>;</span><br><span class="line">    g_svcStatus.dwCheckPoint = <span class="number">0</span>;</span><br><span class="line">    g_svcStatus.dwWaitHint = <span class="number">0</span>;</span><br><span class="line">    SetServiceStatus(g_hSvcStatus, &amp;g_svcStatus);</span><br><span class="line">    <span class="comment">// 设置服务为running状态</span></span><br><span class="line">    g_svcStatus.dwCurrentState = SERVICE_RUNNING;</span><br><span class="line">    SetServiceStatus(g_hSvcStatus, &amp;g_svcStatus);</span><br><span class="line">    <span class="comment">// 循环启动进程</span></span><br><span class="line">    PSTR pPath = <span class="string">&quot;c:\\test.exe&quot;</span>;</span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (GetPidByName(<span class="string">&quot;test.exe&quot;</span>) == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">if</span> (g_osVersion.dwMajorVersion &gt; <span class="number">5</span>)</span><br><span class="line">                VistaStartProcess(pPath);</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">                StartProcess(pPath);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 休眠1分钟</span></span><br><span class="line">        Sleep(<span class="number">60000</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 服务设置SERVICE_RUNNING以后会自动维持运行</span></span><br><span class="line">    <span class="comment">// 除非需要循环执行某些命令，否则不需要手动维持运行</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h5 id="主函数"><a href="#主函数" class="headerlink" title="主函数"></a>主函数</h5><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">int</span> WINAPI _tWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPTSTR lpCmdLine, <span class="keyword">int</span> nCmdShow)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 获取操作系统版本号</span></span><br><span class="line">    OSVERSIONINFO osver = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    <span class="keyword">if</span> (!GetVersionEx(&amp;osver)) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">if</span> (g_osVersion.dwMajorVersion &lt; <span class="number">6</span>) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 低权限内核对象属性描述</span></span><br><span class="line">    SECURITY_DESCRIPTOR secDesc = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    InitializeSecurityDescriptor(&amp;secDesc, SECURITY_DESCRIPTOR_REVISION);</span><br><span class="line">    SetSecurityDescriptorDacl(&amp;secDesc, TRUE, <span class="literal">NULL</span>, FALSE);</span><br><span class="line">    SECURITY_ATTRIBUTES secAttrib = &#123; <span class="number">0</span> &#125;;</span><br><span class="line">    secAttrib.nLength = <span class="keyword">sizeof</span>(SECURITY_ATTRIBUTES);</span><br><span class="line">    secAttrib.lpSecurityDescriptor = &amp;secDesc;</span><br><span class="line">    secAttrib.bInheritHandle = FALSE;</span><br><span class="line">    <span class="comment">// 创建防多开事件</span></span><br><span class="line">    HANDLE hEvent = CreateEvent(&amp;secAttrib, FALSE, FALSE, <span class="string">&quot;Global\\MyService&quot;</span>);</span><br><span class="line">    <span class="comment">// 创建失败，则退出</span></span><br><span class="line">    <span class="keyword">if</span> (hEvent == <span class="literal">NULL</span>) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 已存在，则退出</span></span><br><span class="line">    <span class="keyword">if</span> (GetLastError() == ERROR_ALREADY_EXISTS)</span><br><span class="line">    &#123;</span><br><span class="line">        CloseHandle(hEvent);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 设置服务主函数</span></span><br><span class="line">    SERVICE_TABLE_ENTRY st[] = &#123;</span><br><span class="line">        &#123; <span class="string">&quot;MyService&quot;</span>, ServiceMain &#125;,</span><br><span class="line">        &#123; <span class="literal">NULL</span>, <span class="literal">NULL</span> &#125; &#125;;</span><br><span class="line">    <span class="comment">// 运行服务主函数</span></span><br><span class="line">    StartServiceCtrlDispatcher(st);</span><br><span class="line">    CloseHandle(hEvent);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="其他事项"><a href="#其他事项" class="headerlink" title="其他事项"></a>其他事项</h4><p>以上启动的程序全都是 <code>SYSTEM</code> 权限的，如果想以其他权限运行，就需要在 <code>CreateProcessAsUser</code> 时，<br>使用其他程序的 <code>token</code> 信息，比如获取 <code>explorer.exe</code> 程序的 <code>token</code> 信息</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86/" rel="tag"># 基础知识</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2019/08/13/%E7%BD%91%E7%BB%9C%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E6%8A%93%E5%8F%96%E7%BD%91%E7%BB%9C%E6%95%B0%E6%8D%AE%E5%8C%85%E7%9A%84%E5%AE%9E%E7%8E%B0-1/" rel="prev" title="应用层抓取网络数据包的实现(1)">
+                  <i class="fa fa-chevron-left"></i> 应用层抓取网络数据包的实现(1)
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2019/08/14/USB%E7%9B%B8%E5%85%B3/%E5%BA%94%E7%94%A8%E5%B1%82%E9%81%8D%E5%8E%86%E6%89%80%E6%9C%89%E6%8E%A5%E5%85%A5%E7%9A%84USB%E8%AE%BE%E5%A4%87-1/" rel="next" title="应用层遍历所有接入的USB设备(1)">
+                  应用层遍历所有接入的USB设备(1) <i class="fa fa-chevron-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+  
+  
+  
+
+
+
+      
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      const activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      const commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      
+
+      
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Yang He</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/pisces/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <script src="//cdn.jsdelivr.net/npm/animejs@3.2.0/lib/anime.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script><script src="/js/next-boot.js"></script>
+
+  
+
+
+
+
+  <script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
